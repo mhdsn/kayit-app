@@ -1,0 +1,5 @@
+{
+  "name": "Kayit",
+  "description": "Un SaaS de gestion de factures professionnel pour les freelances et petites entreprises. Inclut un tableau de bord analytique, la génération de PDF et un modèle freemium.",
+  "requestFramePermissions": []
+}
