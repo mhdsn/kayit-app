@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Invoice, InvoiceItem, User, formatPrice } from '../types';
-import { Plus, Trash2, Save, ArrowLeft, Lock, Mail, User as UserIcon, Eye, X, Download, FileText, ChevronDown, Wallet, AlignLeft, Sparkles, MapPin, Search } from 'lucide-react';
+import { Plus, Trash2, Save, ArrowLeft, Lock, Calendar, Hash, MapPin, Mail, User as UserIcon, Eye, X, Download, FileText, ChevronDown, CheckCircle2, Clock, File, Wallet, AlignLeft, Sparkles } from 'lucide-react';
 import { getInvoicePdfBlobUrl, generateInvoicePDF } from '../services/pdfService';
 import { supabase } from '../services/supabaseClient'; 
 
@@ -82,7 +82,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
   const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '');
   const [clientAddress, setClientAddress] = useState(initialData?.clientAddress || '');
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
-  // 🗑️ SUPPRESSION DE DUEDATE ICI
+  
+  // 👇 ICI LA LOGIQUE OPTIONNELLE
+  // On active par défaut si on édite et qu'il y a déjà une date, sinon désactivé par défaut
+  const [showDueDate, setShowDueDate] = useState(!!initialData?.dueDate); 
+  const [dueDate, setDueDate] = useState(initialData?.dueDate || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]); 
   
   const [status, setStatus] = useState<Invoice['status']>(initialData?.status || 'pending');
   const [paymentMethod, setPaymentMethod] = useState(initialData?.paymentMethod || ''); 
@@ -137,7 +141,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
       clientEmail,
       clientAddress,
       date,
-      // dueDate est retiré ou mis à undefined/null selon ton type, ici on l'omet
+      // 👇 Si la case est cochée on met la date, sinon undefined
+      dueDate: showDueDate ? dueDate : undefined,
       items,
       total: calculateTotal(),
       status: status,
@@ -285,10 +290,42 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
                                     <input type="text" required value={number} onChange={(e) => setNumber(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono text-sm focus:border-brand-500 outline-none" />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Date</label>
+                                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Date d'émission</label>
                                     <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none" />
                                 </div>
-                                {/* 🗑️ CHAMPS ÉCHÉANCE SUPPRIMÉ ICI */}
+
+                                {/* 👇 GESTION DE L'ÉCHÉANCE OPTIONNELLE */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="text-xs font-semibold text-slate-500 block">Échéance</label>
+                                        <div className="flex items-center">
+                                            <input 
+                                                type="checkbox" 
+                                                id="toggleDueDate"
+                                                checked={showDueDate} 
+                                                onChange={(e) => setShowDueDate(e.target.checked)}
+                                                className="w-3.5 h-3.5 text-brand-600 rounded border-slate-300 focus:ring-brand-500 cursor-pointer accent-brand-600"
+                                            />
+                                            <label htmlFor="toggleDueDate" className="ml-1.5 text-[10px] text-brand-600 font-medium cursor-pointer uppercase tracking-wide hover:text-brand-700">
+                                                {showDueDate ? 'Active' : 'Ajouter'}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    {showDueDate ? (
+                                        <input 
+                                            type="date" 
+                                            value={dueDate} 
+                                            onChange={(e) => setDueDate(e.target.value)} 
+                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none animate-in fade-in slide-in-from-top-1" 
+                                        />
+                                    ) : (
+                                        <div className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg text-sm text-slate-400 italic cursor-not-allowed select-none">
+                                            Aucune (Payable à réception)
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div>
                                     <label className="text-xs font-semibold text-slate-500 mb-1 block">Statut</label>
                                     <div className="relative">
@@ -305,11 +342,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
                                         <Wallet className="w-3 h-3" /> Mode de paiement
                                     </label>
                                     <div className="relative">
-                                        <select 
-                                            value={paymentMethod} 
-                                            onChange={(e) => setPaymentMethod(e.target.value)} 
-                                            className="w-full appearance-none px-3 py-2 rounded-lg text-sm bg-white border border-slate-200 focus:border-brand-500 outline-none transition-all cursor-pointer text-slate-700"
-                                        >
+                                        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full appearance-none px-3 py-2 rounded-lg text-sm bg-white border border-slate-200 focus:border-brand-500 outline-none transition-all cursor-pointer text-slate-700">
                                             <option value="">Non spécifié</option>
                                             <option value="Espèces">Espèces</option>
                                             <option value="Wave">Wave</option>
@@ -324,7 +357,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
                         </div>
                     </div>
 
-                    {/* PRESTATIONS (Nouvelle version Mobile-Friendly) */}
+                    {/* PRESTATIONS */}
                     <div>
                         <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
                              <Sparkles className="w-4 h-4 text-brand-600" /> Prestations
@@ -333,50 +366,25 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
                         <div className="space-y-3">
                             {items.map((item) => (
                                 <div key={item.id} className="bg-slate-50 rounded-xl p-3 border border-slate-100 hover:border-brand-200 transition-colors group">
-                                    {/* Layout Responsive Flexbox */}
                                     <div className="flex flex-col md:flex-row gap-3">
-                                        
-                                        {/* Description */}
                                         <div className="flex-1">
                                             <label className="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1 block">Description</label>
-                                            <input 
-                                                required type="text" placeholder="Description du service"
-                                                value={item.description} onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:border-brand-500 outline-none text-sm"
-                                            />
+                                            <input required type="text" placeholder="Description du service" value={item.description} onChange={(e) => updateItem(item.id, 'description', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:border-brand-500 outline-none text-sm"/>
                                         </div>
-
-                                        {/* Ligne Qty / Prix */}
                                         <div className="flex gap-3">
                                             <div className="w-20 md:w-24">
                                                 <label className="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1 block">Qté</label>
-                                                <input 
-                                                    required type="number" min="1" placeholder="0"
-                                                    value={item.quantity} onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                                                    onFocus={(e) => e.target.select()}
-                                                    className="w-full px-3 py-2 text-center bg-white border border-slate-200 rounded-lg outline-none text-sm"
-                                                />
+                                                <input required type="number" min="1" placeholder="0" value={item.quantity} onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="w-full px-3 py-2 text-center bg-white border border-slate-200 rounded-lg outline-none text-sm"/>
                                             </div>
                                             <div className="flex-1 md:w-32">
                                                 <label className="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1 block">Prix</label>
-                                                <input 
-                                                    required type="number" min="0" placeholder="0"
-                                                    value={item.price} onChange={(e) => updateItem(item.id, 'price', parseFloat(e.target.value) || 0)}
-                                                    onFocus={(e) => e.target.select()}
-                                                    className="w-full px-3 py-2 text-right bg-white border border-slate-200 rounded-lg outline-none text-sm"
-                                                />
+                                                <input required type="number" min="0" placeholder="0" value={item.price} onChange={(e) => updateItem(item.id, 'price', parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="w-full px-3 py-2 text-right bg-white border border-slate-200 rounded-lg outline-none text-sm"/>
                                             </div>
                                         </div>
-
-                                        {/* Total & Delete */}
                                         <div className="flex items-center justify-between md:justify-end gap-3 md:w-28 pt-2 md:pt-0 border-t md:border-0 border-slate-200 mt-1 md:mt-0">
                                             <span className="md:hidden text-xs font-semibold text-slate-500">Total :</span>
-                                            <span className="font-bold text-slate-700 text-sm">
-                                                {formatPrice(item.quantity * item.price, currency)}
-                                            </span>
-                                            <button type="button" onClick={() => removeItem(item.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            <span className="font-bold text-slate-700 text-sm">{formatPrice(item.quantity * item.price, currency)}</span>
+                                            <button type="button" onClick={() => removeItem(item.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                                         </div>
                                     </div>
                                 </div>
@@ -391,27 +399,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
             
             {/* Notes */}
             <div className="bg-white rounded-2xl p-4 md:p-6 shadow-card border border-slate-200">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block flex items-center gap-2">
-                    <AlignLeft className="w-3 h-3" /> Notes
-                </label>
-                <textarea 
-                    value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none resize-none"
-                    placeholder="Conditions, remerciements, IBAN..."
-                />
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block flex items-center gap-2"><AlignLeft className="w-3 h-3" /> Notes</label>
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none resize-none" placeholder="Conditions, remerciements, IBAN..." />
             </div>
         </div>
 
-        {/* 3. DROITE : RÉSUMÉ (Sticky) */}
+        {/* DROITE : RÉSUMÉ */}
         <div className="lg:col-span-1">
             <div className="sticky top-24 space-y-6">
                 <div className="bg-white rounded-2xl shadow-card border border-slate-200 p-6">
                     <h3 className="text-sm font-bold text-slate-900 mb-4 font-display">Résumé</h3>
                     <div className="space-y-3 pb-4 border-b border-slate-100">
-                        <div className="flex justify-between text-sm text-slate-500">
-                            <span>Sous-total</span>
-                            <span>{formatPrice(calculateTotal(), currency)}</span>
-                        </div>
+                        <div className="flex justify-between text-sm text-slate-500"><span>Sous-total</span><span>{formatPrice(calculateTotal(), currency)}</span></div>
                     </div>
                     <div className="pt-4">
                          <div className="flex justify-between items-end">
@@ -420,16 +419,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
                         </div>
                     </div>
                 </div>
-
                 <div className="bg-brand-50/50 rounded-xl p-4 border border-brand-100 flex gap-3">
-                    <div className="p-2 bg-white rounded-lg shadow-sm h-fit">
-                        <Lock className="w-4 h-4 text-brand-600" />
-                    </div>
+                    <div className="p-2 bg-white rounded-lg shadow-sm h-fit"><Lock className="w-4 h-4 text-brand-600" /></div>
                     <div>
                         <h4 className="text-sm font-bold text-brand-900">Données sécurisées</h4>
-                        <p className="text-xs text-brand-700 mt-1 leading-relaxed">
-                            Vos factures sont stockées en sécurité sur Supabase.
-                        </p>
+                        <p className="text-xs text-brand-700 mt-1 leading-relaxed">Vos factures sont stockées en sécurité sur Supabase.</p>
                     </div>
                 </div>
             </div>
@@ -443,12 +437,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-lg">Aperçu du document</h3>
               <div className="flex items-center gap-2">
-                <button onClick={handleDownloadPreview} className="flex items-center px-3 py-1.5 text-sm font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors">
-                    <Download className="w-4 h-4 mr-2" /> Télécharger
-                </button>
-                <button onClick={() => setIsPreviewOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                    <X className="w-5 h-5 text-slate-500" />
-                </button>
+                <button onClick={handleDownloadPreview} className="flex items-center px-3 py-1.5 text-sm font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"><Download className="w-4 h-4 mr-2" /> Télécharger</button>
+                <button onClick={() => setIsPreviewOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X className="w-5 h-5 text-slate-500" /></button>
               </div>
             </div>
             <div className="flex-1 bg-slate-100 p-4 overflow-hidden rounded-b-2xl relative">

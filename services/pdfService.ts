@@ -3,8 +3,8 @@ import { Invoice, User } from '../types';
 
 // Palette par défaut
 const STANDARD_BLUE = '#2563eb'; 
-const TEXT_DARK = '#1e293b'; 
-const TEXT_GRAY = '#64748b'; 
+const TEXT_DARK = '#1e293b'; // Slate-800
+const TEXT_GRAY = '#64748b'; // Slate-500
 
 const getTheme = (user: User) => {
   const isBusiness = user.plan === 'business';
@@ -28,7 +28,6 @@ const getTheme = (user: User) => {
 };
 
 const formatMoney = (amount: number, currency: string = 'XOF') => {
-    // Formatage propre avec espace pour les milliers
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: currency }).format(amount);
 };
 
@@ -123,8 +122,15 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       setFont('bold', 9, theme.text.primary);
       doc.text("Date d'émission", margin, dateSectionY);
       setFont('normal', 9, theme.text.secondary);
-      // Date uniquement, pas d'échéance
       doc.text(new Date(invoice.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }), margin, dateSectionY + 5);
+
+      // 👇 ECHEANCE OPTIONNELLE (BUSINESS)
+      if (invoice.dueDate) {
+          setFont('bold', 9, theme.text.primary);
+          doc.text("Date d'échéance", midPoint, dateSectionY);
+          setFont('normal', 9, theme.text.secondary);
+          doc.text(new Date(invoice.dueDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }), midPoint, dateSectionY + 5);
+      }
 
       cursorY = dateSectionY + 20;
 
@@ -233,15 +239,23 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       
       setFont('normal', 10, TEXT_GRAY);
       const dateStr = new Date(invoice.date).toLocaleDateString('fr-FR');
-      // Date uniquement, pas d'échéance ici
       doc.text(`Date : ${dateStr}`, rightX, cursorY + 17, { align: 'right' });
+
+      // 👇 ECHEANCE OPTIONNELLE (STANDARD)
+      let statusY = cursorY + 23; // Position par défaut du statut
+      
+      if (invoice.dueDate) {
+          const dueDateStr = new Date(invoice.dueDate).toLocaleDateString('fr-FR');
+          doc.text(`Échéance : ${dueDateStr}`, rightX, statusY, { align: 'right' });
+          statusY += 6; // On décale le statut vers le bas si l'échéance est affichée
+      }
 
       if (invoice.status === 'paid') {
           setFont('bold', 10, '#10b981'); 
-          doc.text("PAYÉE", rightX, cursorY + 23, { align: 'right' });
+          doc.text("PAYÉE", rightX, statusY, { align: 'right' });
       } else if (invoice.status === 'pending') {
           setFont('bold', 10, '#f59e0b'); 
-          doc.text("EN ATTENTE", rightX, cursorY + 23, { align: 'right' });
+          doc.text("EN ATTENTE", rightX, statusY, { align: 'right' });
       }
 
       cursorY += 40;
@@ -358,15 +372,13 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
   return doc;
 };
 
-// 👇 LE CORRECTIF MOBILE EST ICI 👇
+// 👇 FONCTION AVEC SUPPORT MOBILE (SHARE)
 export const generateInvoicePDF = async (invoice: Invoice, user: User) => {
   const doc = createInvoiceDoc(invoice, user);
   const fileName = invoice.number ? `Facture-${invoice.number}.pdf` : 'Facture.pdf';
 
-  // Détection Mobile (User Agent simple)
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-  // 1. MODE MOBILE : Partage Natif
   if (isMobile && navigator.share) {
     try {
       const blob = doc.output('blob');
@@ -378,14 +390,13 @@ export const generateInvoicePDF = async (invoice: Invoice, user: User) => {
           title: `Facture ${invoice.number || ''}`,
           text: `Voici la facture de ${invoice.clientName}`,
         });
-        return; // Terminé si partage réussi
+        return; 
       }
     } catch (error) {
       console.warn("Partage mobile annulé, on tente le téléchargement classique.");
     }
   }
 
-  // 2. MODE PC (ou Fallback) : Téléchargement Classique
   doc.save(fileName);
 };
 
