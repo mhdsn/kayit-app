@@ -3,8 +3,8 @@ import { Invoice, User } from '../types';
 
 // Palette par défaut
 const STANDARD_BLUE = '#2563eb'; 
-const TEXT_DARK = '#1e293b'; // Slate-800
-const TEXT_GRAY = '#64748b'; // Slate-500
+const TEXT_DARK = '#1e293b'; 
+const TEXT_GRAY = '#64748b'; 
 
 const getTheme = (user: User) => {
   const isBusiness = user.plan === 'business';
@@ -27,8 +27,16 @@ const getTheme = (user: User) => {
   };
 };
 
+// 👇 CORRECTION ICI : Formatage manuel propre (1 000 XOF)
 const formatMoney = (amount: number, currency: string = 'XOF') => {
-    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: currency }).format(amount);
+    // 1. On formate le nombre (espace pour les milliers, virgule pour décimales)
+    const cleanNumber = new Intl.NumberFormat('fr-FR', { 
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2 
+    }).format(amount);
+
+    // 2. On ajoute la devise à la fin simplement
+    return `${cleanNumber} ${currency}`;
 };
 
 const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
@@ -124,7 +132,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       setFont('normal', 9, theme.text.secondary);
       doc.text(new Date(invoice.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }), margin, dateSectionY + 5);
 
-      // 👇 ECHEANCE OPTIONNELLE (BUSINESS)
+      // ECHEANCE OPTIONNELLE (BUSINESS)
       if (invoice.dueDate) {
           setFont('bold', 9, theme.text.primary);
           doc.text("Date d'échéance", midPoint, dateSectionY);
@@ -241,13 +249,13 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       const dateStr = new Date(invoice.date).toLocaleDateString('fr-FR');
       doc.text(`Date : ${dateStr}`, rightX, cursorY + 17, { align: 'right' });
 
-      // 👇 ECHEANCE OPTIONNELLE (STANDARD)
-      let statusY = cursorY + 23; // Position par défaut du statut
+      // ECHEANCE OPTIONNELLE (STANDARD)
+      let statusY = cursorY + 23; 
       
       if (invoice.dueDate) {
           const dueDateStr = new Date(invoice.dueDate).toLocaleDateString('fr-FR');
           doc.text(`Échéance : ${dueDateStr}`, rightX, statusY, { align: 'right' });
-          statusY += 6; // On décale le statut vers le bas si l'échéance est affichée
+          statusY += 6; 
       }
 
       if (invoice.status === 'paid') {
@@ -372,7 +380,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
   return doc;
 };
 
-// 👇 FONCTION AVEC SUPPORT MOBILE (SHARE)
+// FONCTION AVEC SUPPORT MOBILE (SHARE)
 export const generateInvoicePDF = async (invoice: Invoice, user: User) => {
   const doc = createInvoiceDoc(invoice, user);
   const fileName = invoice.number ? `Facture-${invoice.number}.pdf` : 'Facture.pdf';
