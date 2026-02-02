@@ -45,7 +45,6 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
   const filteredInvoices = invoices.filter((invoice) => {
     const term = searchTerm.toLowerCase();
     
-    // 👇 CORRECTION 1 : On utilise 'number' au lieu de 'invoiceNumber' pour la recherche
     const invoiceNum = invoice.number || ''; // Sécurité si jamais vide
 
     const matchesSearch = 
@@ -178,7 +177,8 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            {/* 👇 C'EST ICI LA MODIFICATION : min-w-[800px] */}
+            <table className="w-full text-left text-sm min-w-[800px]">
               <thead className="bg-slate-50/80 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 <tr>
                   <th className="px-6 py-4">Numéro</th>
@@ -194,7 +194,6 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
                     const status = statusConfig[invoice.status] || statusConfig.draft;
                     return (
                     <tr key={invoice.id} className="hover:bg-slate-50/80 transition-colors group">
-                        {/* 👇 CORRECTION 2 : On affiche 'invoice.number' */}
                         <td className="px-6 py-4 font-mono font-medium text-slate-600">{invoice.number}</td>
                         <td className="px-6 py-4">
                             <span className="font-semibold text-slate-900 block">{invoice.clientName}</span>
