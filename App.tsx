@@ -57,10 +57,10 @@ const App: React.FC = () => {
 
     initSession();
 
-    // 2. Écouteur d'événements (C'est ici que la magie opère ✨)
+    // 2. Écouteur d'événements
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_OUT') {
-            // 👇 FORCE L'AFFICHAGE DE LA LANDING PAGE EN CAS DE DÉCONNEXION
+            // Sécurité supplémentaire : Si l'événement arrive après notre logout forcé, on s'assure que tout est propre
             setShowLanding(true); 
             setUser(null);
             setInvoices([]);
@@ -69,7 +69,6 @@ const App: React.FC = () => {
             setUser(formatUserFromSession(session));
             setShowLanding(false);
         } else {
-            // Cas rare (token expiré sans logout explicite)
             setUser(null);
             setInvoices([]);
         }
@@ -115,16 +114,25 @@ const App: React.FC = () => {
     setCurrentRoute(AppRoute.DASHBOARD);
   };
 
-  // 👇 LOGOUT (Sert de déclencheur manuel)
+  // 👇 CORRECTION ICI : LOGOUT AUTORITAIRE
   const handleLogout = async () => {
     setIsLoading(true);
     try {
-        await supabase.auth.signOut(); // Ceci va déclencher l'événement SIGNED_OUT plus haut
-        setIsMobileOpen(false);
+        // On lance la déconnexion Supabase sans attendre (fire and forget)
+        await supabase.auth.signOut();
     } catch (error) {
         console.error("Erreur déconnexion", error);
+    } finally {
+        // QUOI QU'IL ARRIVE : On force le nettoyage local immédiat
+        setIsMobileOpen(false);
+        setUser(null);
+        setInvoices([]);
+        setAuthInitialMode('login');
+        setShowLanding(true); // Retour case départ
+        
+        // CRUCIAL : On coupe le chargement manuellement
+        setIsLoading(false);
     }
-    // Pas besoin de setIsLoading(false) ici, l'événement SIGNED_OUT le fera
   };
 
   const handleUpdateUser = async (u: User) => { setUser(u); try { await supabase.auth.updateUser({ data: { full_name: u.name, business_name: u.businessName, phone: u.phone, currency: u.currency, logo: u.logo, brandColor: u.brandColor } }); showNotification("Profil sauvegardé !", 'success'); } catch (e) { showNotification("Erreur de sauvegarde.", 'info'); } };
