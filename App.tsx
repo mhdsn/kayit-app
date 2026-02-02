@@ -27,7 +27,6 @@ const App: React.FC = () => {
   
   // GESTION LANDING & AUTH
   const [showLanding, setShowLanding] = useState(true);
-  // 👇 NOUVEAU STATE : Pour savoir si on affiche Login ou Signup par défaut
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'signup'>('login');
 
   useEffect(() => {
@@ -107,10 +106,21 @@ const App: React.FC = () => {
     setCurrentRoute(AppRoute.DASHBOARD);
   };
 
+  // 👇 LOGOUT STABILISÉ POUR MOBILE
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setShowLanding(true);
-    setAuthInitialMode('login'); // Reset au login par défaut
+    setIsLoading(true); // Active l'écran de chargement immédiatement
+    try {
+        await supabase.auth.signOut();
+        setIsMobileOpen(false); // Ferme le menu
+        setAuthInitialMode('login');
+        setShowLanding(true);
+    } catch (error) {
+        console.error("Erreur déconnexion", error);
+    } finally {
+        // Le useEffect onAuthStateChange fera le reste (setUser(null)), 
+        // mais on s'assure que le loading s'arrête
+        setIsLoading(false);
+    }
   };
 
   const handleUpdateUser = async (u: User) => { setUser(u); try { await supabase.auth.updateUser({ data: { full_name: u.name, business_name: u.businessName, phone: u.phone, currency: u.currency, logo: u.logo, brandColor: u.brandColor } }); showNotification("Profil sauvegardé !", 'success'); } catch (e) { showNotification("Erreur de sauvegarde.", 'info'); } };
@@ -124,30 +134,22 @@ const App: React.FC = () => {
 
   if (isLoading) {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-            <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+        <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+            <Loader2 className="w-10 h-10 animate-spin text-brand-600" />
         </div>
     );
   }
 
-  // 👇 GESTION DE L'AFFICHAGE PRINCIPAL (MODIFIÉ)
-  // 👇 GESTION DE L'AFFICHAGE PRINCIPAL
+  // GESTION DE L'AFFICHAGE PRINCIPAL
   if (!user) {
     if (showLanding) {
         return (
             <LandingPage 
-                onLoginClick={() => {
-                    setAuthInitialMode('login');
-                    setShowLanding(false);
-                }} 
-                onSignupClick={() => {
-                    setAuthInitialMode('signup');
-                    setShowLanding(false);
-                }} 
+                onLoginClick={() => { setAuthInitialMode('login'); setShowLanding(false); }} 
+                onSignupClick={() => { setAuthInitialMode('signup'); setShowLanding(false); }} 
             />
         );
     }
-    // 👇 ICI : On passe la fonction qui remet showLanding à true
     return (
         <Auth 
             onLogin={handleLogin} 
@@ -183,8 +185,10 @@ const App: React.FC = () => {
     }
   };
 
+  // 👇 STRUCTURE CORRIGÉE POUR MOBILE (NO WOBBLE)
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50 overflow-hidden"> {/* FIX 1: h-screen + overflow-hidden */}
+      
       <Sidebar 
         currentRoute={currentRoute} 
         onChangeRoute={handleNavigate} 
@@ -195,35 +199,41 @@ const App: React.FC = () => {
         setIsMobileOpen={setIsMobileOpen}
       />
       
-      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden relative">
+      {/* FIX 2: Le Main gère le scroll vertical et coupe le scroll horizontal */}
+      <main className="flex-1 h-full overflow-y-auto overflow-x-hidden relative w-full">
+        
         {notification && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
-                <div className={`flex items-center gap-3 px-6 py-3 rounded-full shadow-lg border ${
-                    notification.type === 'success' 
-                    ? 'bg-emerald-600 text-white border-emerald-500' 
-                    : 'bg-slate-800 text-white border-slate-700'
-                }`}>
-                    {notification.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <Info className="w-5 h-5" />}
-                    <span className="font-medium text-sm">{notification.message}</span>
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300 pointer-events-none">
+                <div className="flex items-center gap-3 px-6 py-3 rounded-full shadow-lg border pointer-events-auto bg-white">
+                     {notification.type === 'success' 
+                        ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                        : <Info className="w-5 h-5 text-brand-600" />
+                     }
+                    <span className={`font-medium text-sm ${
+                        notification.type === 'success' ? 'text-emerald-700' : 'text-brand-700'
+                    }`}>
+                        {notification.message}
+                    </span>
                 </div>
             </div>
         )}
 
-        <div className="md:hidden bg-white border-b border-slate-200 p-4 flex items-center justify-between sticky top-0 z-10">
+        {/* Header Mobile Sticky */}
+        <div className="md:hidden bg-white/90 backdrop-blur-md border-b border-slate-200 p-4 flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold">K</div>
+            <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">K</div>
             <span className="font-bold text-slate-900">Kayit</span>
           </div>
-          <button onClick={() => setIsMobileOpen(true)} className="p-2 text-slate-600">
+          <button onClick={() => setIsMobileOpen(true)} className="p-2 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
             <Menu className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-auto p-4 md:p-8">
-          <div className="max-w-6xl mx-auto h-full">
-            {renderContent()}
-          </div>
+        {/* Contenu avec padding sécurisé */}
+        <div className="p-4 md:p-8 max-w-7xl mx-auto">
+           {renderContent()}
         </div>
+
       </main>
     </div>
   );
