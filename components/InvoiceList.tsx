@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Invoice, User, formatPrice } from '../types';
-import { generateInvoicePDF } from '../services/pdfService';
-import { Download, Trash2, Search, Filter, FileText, Pencil, Check, AlertTriangle, Lock } from 'lucide-react';
+// 👇 CHANGEMENT 1 : On utilise notre nouveau générateur compatible Mobile
+import { generateAndDownloadPDF } from '../utils/pdfGenerator';
+import { Download, Trash2, Search, Filter, FileText, Pencil, Check, AlertTriangle, Lock, Loader2 } from 'lucide-react';
 
 interface InvoiceListProps {
   invoices: Invoice[];
@@ -15,6 +16,10 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending' | 'draft'>('all');
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
+  
+  // 👇 CHANGEMENT 2 : État pour suivre quelle facture est en cours de téléchargement
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  
   const filterMenuRef = useRef<HTMLDivElement>(null);
 
   // PLAN STARTER : Pas d'historique complet (limite à 30 jours)
@@ -30,8 +35,20 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleDownload = (invoice: Invoice) => {
-    generateInvoicePDF(invoice, user);
+  // 👇 CHANGEMENT 3 : Nouvelle fonction de téléchargement avec Loader
+  const handleDownload = async (invoice: Invoice) => {
+    setDownloadingId(invoice.id); // On allume le loader
+    
+    // Petit délai pour laisser React afficher le loader avant que le calcul lourd commence
+    setTimeout(async () => {
+        try {
+            await generateAndDownloadPDF(invoice, user);
+        } catch (error) {
+            console.error("Erreur download", error);
+        } finally {
+            setDownloadingId(null); // On éteint le loader
+        }
+    }, 50);
   };
 
   const confirmDelete = () => {
@@ -177,7 +194,6 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
           </div>
         ) : (
           <div className="overflow-x-auto">
-            {/* 👇 C'EST ICI LA MODIFICATION : min-w-[800px] */}
             <table className="w-full text-left text-sm min-w-[800px]">
               <thead className="bg-slate-50/80 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 <tr>
@@ -192,6 +208,8 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
               <tbody className="divide-y divide-slate-100">
                 {filteredInvoices.map((invoice) => {
                     const status = statusConfig[invoice.status] || statusConfig.draft;
+                    const isDownloading = downloadingId === invoice.id; // On vérifie si CETTE facture charge
+
                     return (
                     <tr key={invoice.id} className="hover:bg-slate-50/80 transition-colors group">
                         <td className="px-6 py-4 font-mono font-medium text-slate-600">{invoice.number}</td>
@@ -222,37 +240,49 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
                                         <Pencil className="w-4 h-4" />
                                     </button>
                                     )}
+                                    {/* 👇 BOUTON DOWNLOAD INTELLIGENT */}
                                     <button
-                                    onClick={() => handleDownload(invoice)}
-                                    className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors border border-transparent hover:border-brand-200"
-                                    title="Télécharger PDF"
+                                        onClick={() => handleDownload(invoice)}
+                                        disabled={isDownloading}
+                                        className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors border border-transparent hover:border-brand-200"
+                                        title="Télécharger PDF"
                                     >
-                                    <Download className="w-4 h-4" />
+                                        {isDownloading ? (
+                                            <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
+                                        ) : (
+                                            <Download className="w-4 h-4" />
+                                        )}
                                     </button>
+
                                     <button
-                                    onClick={() => setInvoiceToDelete(invoice.id)}
-                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200"
-                                    title="Supprimer"
+                                        onClick={() => setInvoiceToDelete(invoice.id)}
+                                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200"
+                                        title="Supprimer"
                                     >
-                                    <Trash2 className="w-4 h-4" />
+                                        <Trash2 className="w-4 h-4" />
                                     </button>
                                 </>
                             ) : (
                                 <div className="flex items-center gap-2">
                                      <button
-                                    onClick={() => handleDownload(invoice)}
-                                    className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors border border-transparent hover:border-brand-200"
-                                    title="Télécharger PDF"
+                                        onClick={() => handleDownload(invoice)}
+                                        disabled={isDownloading}
+                                        className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors border border-transparent hover:border-brand-200"
+                                        title="Télécharger PDF"
                                     >
-                                    <Download className="w-4 h-4" />
+                                        {isDownloading ? (
+                                            <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
+                                        ) : (
+                                            <Download className="w-4 h-4" />
+                                        )}
                                     </button>
                                      <button
-                                        disabled
-                                        className="p-2 text-slate-200 cursor-not-allowed"
-                                        title="Modification disponible en version Pro"
-                                    >
-                                        <Lock className="w-4 h-4" />
-                                    </button>
+                                         disabled
+                                         className="p-2 text-slate-200 cursor-not-allowed"
+                                         title="Modification disponible en version Pro"
+                                     >
+                                         <Lock className="w-4 h-4" />
+                                     </button>
                                 </div>
                             )}
                         </div>
