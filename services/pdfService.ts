@@ -27,16 +27,14 @@ const getTheme = (user: User) => {
   };
 };
 
-// 👇 CORRECTION ICI : Formatage manuel propre (1 000 XOF)
+// 👇 CORRECTION : On utilise des espaces simples pour éviter les "/" bizarres
 const formatMoney = (amount: number, currency: string = 'XOF') => {
-    // 1. On formate le nombre (espace pour les milliers, virgule pour décimales)
-    const cleanNumber = new Intl.NumberFormat('fr-FR', { 
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2 
-    }).format(amount);
-
-    // 2. On ajoute la devise à la fin simplement
-    return `${cleanNumber} ${currency}`;
+    // 1. Convertir en entier (pas de décimales pour XOF généralement)
+    // 2. Ajouter un espace tous les 3 chiffres via Regex
+    const cleanAmount = amount.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    
+    // 3. Retourner le format "100 000 XOF"
+    return `${cleanAmount} ${currency}`;
 };
 
 const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
@@ -58,7 +56,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
   let cursorY = margin;
 
   // =================================================================
-  // 💎 DESIGN BUSINESS (PREMIUM & COULEUR)
+  // 💎 DESIGN BUSINESS
   // =================================================================
   if (isBusiness) {
       
@@ -89,7 +87,6 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       setFont('normal', 10, theme.text.accent);
       doc.text(`#${invoice.number}`, rightX, cursorY + 18, { align: 'right' });
 
-      // Badge Statut
       const statusLabel = invoice.status === 'paid' ? 'PAYÉE' : invoice.status === 'pending' ? 'EN ATTENTE' : 'BROUILLON';
       const statusColor = invoice.status === 'paid' ? '#10b981' : invoice.status === 'pending' ? '#f59e0b' : '#94a3b8';
       doc.setFontSize(9);
@@ -103,7 +100,6 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
 
       cursorY += 45;
 
-      // Adresses
       const midPoint = pageWidth / 2;
       setFont('bold', 8, '#94a3b8');
       doc.text("ÉMIS PAR", margin, cursorY);
@@ -132,7 +128,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       setFont('normal', 9, theme.text.secondary);
       doc.text(new Date(invoice.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }), margin, dateSectionY + 5);
 
-      // ECHEANCE OPTIONNELLE (BUSINESS)
+      // ECHEANCE OPTIONNELLE
       if (invoice.dueDate) {
           setFont('bold', 9, theme.text.primary);
           doc.text("Date d'échéance", midPoint, dateSectionY);
@@ -142,7 +138,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
 
       cursorY = dateSectionY + 20;
 
-      // Tableau
+      // Tableau Business
       const colDesc = margin;
       const colQty = pageWidth - margin - 80;
       const colPrice = pageWidth - margin - 45;
@@ -217,7 +213,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
 
   } else {
       // =================================================================
-      // 🛡️ DESIGN STANDARD (STARTER & PRO)
+      // 🛡️ DESIGN STANDARD
       // =================================================================
       
       const showLogo = user.plan !== 'starter' && user.logo;
@@ -249,7 +245,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       const dateStr = new Date(invoice.date).toLocaleDateString('fr-FR');
       doc.text(`Date : ${dateStr}`, rightX, cursorY + 17, { align: 'right' });
 
-      // ECHEANCE OPTIONNELLE (STANDARD)
+      // ECHEANCE OPTIONNELLE
       let statusY = cursorY + 23; 
       
       if (invoice.dueDate) {
@@ -331,7 +327,6 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       doc.line(margin, cursorY, pageWidth - margin, cursorY);
       cursorY += 10;
       
-      // TOTAUX
       const summaryWidth = 100;
       const summaryX = pageWidth - margin - summaryWidth;
 
@@ -380,7 +375,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
   return doc;
 };
 
-// FONCTION AVEC SUPPORT MOBILE (SHARE)
+// FONCTION AVEC SUPPORT MOBILE
 export const generateInvoicePDF = async (invoice: Invoice, user: User) => {
   const doc = createInvoiceDoc(invoice, user);
   const fileName = invoice.number ? `Facture-${invoice.number}.pdf` : 'Facture.pdf';
