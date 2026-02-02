@@ -108,25 +108,25 @@ const App: React.FC = () => {
     setCurrentRoute(AppRoute.DASHBOARD);
   };
 
- // 👇 LOGOUT INSTANTANÉ (Sans chargement, sans attente)
+  // 👇 LOGOUT INSTANTANÉ (Sans chargement, sans attente)
   const handleLogout = async () => {
     // 1. On coupe tout lien avec le navigateur IMMÉDIATEMENT
-    localStorage.removeItem('sb-<ton-id-projet>-auth-token'); // Nettoyage ciblé
-    localStorage.clear(); // Nettoyage brutal
+    localStorage.clear();
     sessionStorage.clear();
 
-    // 2. On met à jour l'interface TOUT DE SUITE (Pas de Loading = Pas de cercle qui tourne)
-    setIsLoading(false); // On s'assure que le loader est éteint
+    // 2. On met à jour l'interface TOUT DE SUITE
+    // IMPORTANT : On ne met PAS isLoading(true) ici !
+    setIsLoading(false); 
     setIsMobileOpen(false);
     setAuthInitialMode('login');
     setShowLanding(true);
     
-    // 3. L'étape cruciale : On met user à null EN DERNIER pour déclencher le changement d'écran
+    // 3. On coupe l'utilisateur
     setInvoices([]);
     setUser(null);
 
     // 4. On envoie la requête à Supabase en "Tâche de fond"
-    // On ne met PAS de 'await'. On s'en fiche si ça échoue, l'utilisateur est déjà parti.
+    // On ne met PAS de 'await'.
     supabase.auth.signOut(); 
   };
 
