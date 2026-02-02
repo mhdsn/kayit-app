@@ -1,5 +1,14 @@
-import React from 'react';
-import { CheckCircle2, ArrowRight, Zap, Shield, FileCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+  CheckCircle2, 
+  ArrowRight, 
+  Zap, 
+  Shield, 
+  FileCheck, 
+  Menu, 
+  X, 
+  LogIn 
+} from 'lucide-react';
 
 interface LandingPageProps {
   onLoginClick: () => void;
@@ -7,20 +16,27 @@ interface LandingPageProps {
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignupClick }) => {
+  // État pour gérer l'ouverture du menu mobile
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900">
       
       {/* 1. NAVBAR */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          
+          {/* LOGO */}
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-md shadow-brand-500/20">K</div>
             <span className="font-bold text-xl tracking-tight text-slate-900">Kayit</span>
           </div>
-          <div className="flex items-center gap-4">
+
+          {/* MENUS DESKTOP (Caché sur mobile) */}
+          <div className="hidden md:flex items-center gap-4">
             <button 
               onClick={onLoginClick}
-              className="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors hidden sm:block"
+              className="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors"
             >
               Se connecter
             </button>
@@ -31,7 +47,45 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignupClick }
               Commencer
             </button>
           </div>
+
+          {/* CONTROLES MOBILE (Visible uniquement sur mobile) */}
+          <div className="flex items-center gap-3 md:hidden">
+            {/* Petit bouton Connexion rapide */}
+            <button 
+                onClick={onLoginClick}
+                className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-brand-700 bg-brand-50 rounded-full border border-brand-100 active:bg-brand-100 transition-colors"
+            >
+                <LogIn className="w-3.5 h-3.5" />
+                Connexion
+            </button>
+
+            {/* Bouton Hamburger */}
+            <button 
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 text-slate-600 hover:bg-slate-50 rounded-lg"
+            >
+                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
+
+        {/* MENU DÉROULANT MOBILE */}
+        {isMobileMenuOpen && (
+            <div className="md:hidden absolute top-16 left-0 right-0 bg-white border-b border-slate-100 shadow-xl p-4 flex flex-col gap-3 animate-in slide-in-from-top-2">
+                <button 
+                    onClick={() => { setIsMobileMenuOpen(false); onLoginClick(); }}
+                    className="w-full py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl active:bg-slate-50"
+                >
+                    Se connecter
+                </button>
+                <button 
+                    onClick={() => { setIsMobileMenuOpen(false); onSignupClick(); }}
+                    className="w-full py-3 bg-brand-600 text-white font-bold rounded-xl shadow-md active:bg-brand-700"
+                >
+                    Créer un compte gratuit
+                </button>
+            </div>
+        )}
       </nav>
 
       {/* 2. HERO SECTION */}
@@ -66,7 +120,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignupClick }
           </button>
         </div>
 
-        {/* 👇👇👇 MODIFICATION ICI : IMAGE TABLEAU DE BORD 👇👇👇 */}
+        {/* IMAGE TABLEAU DE BORD */}
         <div className="mt-20 relative mx-auto max-w-5xl animate-in fade-in zoom-in-95 duration-1000 delay-500">
             {/* Lueur colorée derrière l'image */}
             <div className="absolute -inset-1 bg-gradient-to-r from-brand-500 to-purple-600 rounded-2xl blur opacity-20"></div>
@@ -74,13 +128,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignupClick }
             {/* Conteneur de l'image */}
             <div className="relative rounded-2xl shadow-2xl overflow-hidden border border-slate-200 bg-white">
                 <img 
-                    src="/tableauBord.png" // Assure-toi que l'image est dans le dossier /public
+                    src="/tableauBord.png" 
                     alt="Tableau de bord Kayit" 
                     className="w-full h-auto object-cover"
                 />
             </div>
         </div>
-        {/* 👆👆👆 FIN MODIFICATION 👆👆👆 */}
 
       </section>
 
