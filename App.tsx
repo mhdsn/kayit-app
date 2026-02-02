@@ -23,9 +23,9 @@ const App: React.FC = () => {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | undefined>(undefined);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'info'} | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   
   // GESTION LANDING & AUTH
+  const [isLoading, setIsLoading] = useState(true);
   const [showLanding, setShowLanding] = useState(true);
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'signup'>('login');
 
@@ -45,7 +45,6 @@ const App: React.FC = () => {
         };
     };
 
-    // 1. Vérification initiale
     const initSession = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
@@ -57,20 +56,17 @@ const App: React.FC = () => {
 
     initSession();
 
-    // 2. Écouteur d'événements
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_OUT') {
-            // Sécurité supplémentaire : Si l'événement arrive après notre logout forcé, on s'assure que tout est propre
-            setShowLanding(true); 
-            setUser(null);
-            setInvoices([]);
-            setAuthInitialMode('login');
-        } else if (session) {
+        // On gère uniquement la CONNEXION ici pour éviter les conflits au logout
+        if (event === 'SIGNED_IN' && session) {
             setUser(formatUserFromSession(session));
             setShowLanding(false);
-        } else {
+            setAuthInitialMode('login'); // Reset
+        } else if (event === 'SIGNED_OUT') {
+            // Sécurité : on s'assure que tout est vidé
             setUser(null);
             setInvoices([]);
+            setShowLanding(true);
         }
         setIsLoading(false);
     });
@@ -114,24 +110,21 @@ const App: React.FC = () => {
     setCurrentRoute(AppRoute.DASHBOARD);
   };
 
-  // 👇 CORRECTION ICI : LOGOUT AUTORITAIRE
+  // 👇 LA SOLUTION : LOGOUT INSTANTANÉ (SYNCHRONE)
   const handleLogout = async () => {
-    setIsLoading(true);
+    // 1. On change l'UI TOUT DE SUITE (avant même de parler au serveur)
+    setIsMobileOpen(false);       // Ferme le menu
+    setShowLanding(true);         // Affiche la Landing Page
+    setAuthInitialMode('login');  // Reset le mode d'auth
+    setUser(null);                // Supprime l'utilisateur localement
+    setInvoices([]);              // Vide les données
+
+    // 2. On lance la déconnexion Supabase en "Tâche de fond" (Fire and Forget)
+    // On ne met PAS de 'await' bloquant, ou on ignore l'attente visuelle
     try {
-        // On lance la déconnexion Supabase sans attendre (fire and forget)
         await supabase.auth.signOut();
     } catch (error) {
-        console.error("Erreur déconnexion", error);
-    } finally {
-        // QUOI QU'IL ARRIVE : On force le nettoyage local immédiat
-        setIsMobileOpen(false);
-        setUser(null);
-        setInvoices([]);
-        setAuthInitialMode('login');
-        setShowLanding(true); // Retour case départ
-        
-        // CRUCIAL : On coupe le chargement manuellement
-        setIsLoading(false);
+        console.error("Erreur silencieuse déconnexion:", error);
     }
   };
 
@@ -152,7 +145,7 @@ const App: React.FC = () => {
     );
   }
 
-  // GESTION DE L'AFFICHAGE PRINCIPAL
+  // 👇 LOGIQUE D'AFFICHAGE (User Null = Landing OU Auth)
   if (!user) {
     if (showLanding) {
         return (
