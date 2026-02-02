@@ -45,6 +45,7 @@ const App: React.FC = () => {
         };
     };
 
+    // 1. Vérification initiale
     const initSession = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
@@ -56,11 +57,19 @@ const App: React.FC = () => {
 
     initSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-        if (session) {
+    // 2. Écouteur d'événements (C'est ici que la magie opère ✨)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_OUT') {
+            // 👇 FORCE L'AFFICHAGE DE LA LANDING PAGE EN CAS DE DÉCONNEXION
+            setShowLanding(true); 
+            setUser(null);
+            setInvoices([]);
+            setAuthInitialMode('login');
+        } else if (session) {
             setUser(formatUserFromSession(session));
             setShowLanding(false);
         } else {
+            // Cas rare (token expiré sans logout explicite)
             setUser(null);
             setInvoices([]);
         }
@@ -106,21 +115,16 @@ const App: React.FC = () => {
     setCurrentRoute(AppRoute.DASHBOARD);
   };
 
-  // 👇 LOGOUT STABILISÉ POUR MOBILE
+  // 👇 LOGOUT (Sert de déclencheur manuel)
   const handleLogout = async () => {
-    setIsLoading(true); // Active l'écran de chargement immédiatement
+    setIsLoading(true);
     try {
-        await supabase.auth.signOut();
-        setIsMobileOpen(false); // Ferme le menu
-        setAuthInitialMode('login');
-        setShowLanding(true);
+        await supabase.auth.signOut(); // Ceci va déclencher l'événement SIGNED_OUT plus haut
+        setIsMobileOpen(false);
     } catch (error) {
         console.error("Erreur déconnexion", error);
-    } finally {
-        // Le useEffect onAuthStateChange fera le reste (setUser(null)), 
-        // mais on s'assure que le loading s'arrête
-        setIsLoading(false);
     }
+    // Pas besoin de setIsLoading(false) ici, l'événement SIGNED_OUT le fera
   };
 
   const handleUpdateUser = async (u: User) => { setUser(u); try { await supabase.auth.updateUser({ data: { full_name: u.name, business_name: u.businessName, phone: u.phone, currency: u.currency, logo: u.logo, brandColor: u.brandColor } }); showNotification("Profil sauvegardé !", 'success'); } catch (e) { showNotification("Erreur de sauvegarde.", 'info'); } };
@@ -185,9 +189,8 @@ const App: React.FC = () => {
     }
   };
 
-  // 👇 STRUCTURE CORRIGÉE POUR MOBILE (NO WOBBLE)
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden"> {/* FIX 1: h-screen + overflow-hidden */}
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
       
       <Sidebar 
         currentRoute={currentRoute} 
@@ -199,7 +202,6 @@ const App: React.FC = () => {
         setIsMobileOpen={setIsMobileOpen}
       />
       
-      {/* FIX 2: Le Main gère le scroll vertical et coupe le scroll horizontal */}
       <main className="flex-1 h-full overflow-y-auto overflow-x-hidden relative w-full">
         
         {notification && (
@@ -218,7 +220,6 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* Header Mobile Sticky */}
         <div className="md:hidden bg-white/90 backdrop-blur-md border-b border-slate-200 p-4 flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">K</div>
@@ -229,7 +230,6 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        {/* Contenu avec padding sécurisé */}
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
            {renderContent()}
         </div>
