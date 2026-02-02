@@ -57,13 +57,11 @@ const App: React.FC = () => {
     initSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        // On gère uniquement la CONNEXION ici pour éviter les conflits au logout
         if (event === 'SIGNED_IN' && session) {
             setUser(formatUserFromSession(session));
             setShowLanding(false);
-            setAuthInitialMode('login'); // Reset
+            setAuthInitialMode('login'); 
         } else if (event === 'SIGNED_OUT') {
-            // Sécurité : on s'assure que tout est vidé
             setUser(null);
             setInvoices([]);
             setShowLanding(true);
@@ -110,21 +108,31 @@ const App: React.FC = () => {
     setCurrentRoute(AppRoute.DASHBOARD);
   };
 
-  // 👇 LA SOLUTION : LOGOUT INSTANTANÉ (SYNCHRONE)
+  // 👇 LOGOUT NUCLÉAIRE (VIDE LE CACHE NAVIGATEUR)
   const handleLogout = async () => {
-    // 1. On change l'UI TOUT DE SUITE (avant même de parler au serveur)
-    setIsMobileOpen(false);       // Ferme le menu
-    setShowLanding(true);         // Affiche la Landing Page
-    setAuthInitialMode('login');  // Reset le mode d'auth
-    setUser(null);                // Supprime l'utilisateur localement
-    setInvoices([]);              // Vide les données
+    // 1. On coupe l'accès visuel tout de suite
+    setIsLoading(true);
 
-    // 2. On lance la déconnexion Supabase en "Tâche de fond" (Fire and Forget)
-    // On ne met PAS de 'await' bloquant, ou on ignore l'attente visuelle
     try {
+        // 2. On tente la déconnexion propre Supabase
         await supabase.auth.signOut();
     } catch (error) {
-        console.error("Erreur silencieuse déconnexion:", error);
+        console.error("Erreur déconnexion:", error);
+    } finally {
+        // 3. LA CLÉ DU SUCCÈS : On vide manuellement le stockage du navigateur
+        // C'est ça qui empêche la reconnexion au refresh !
+        localStorage.clear(); 
+        sessionStorage.clear();
+
+        // 4. On remet l'application à zéro
+        setIsMobileOpen(false);
+        setUser(null);
+        setInvoices([]);
+        setAuthInitialMode('login');
+        setShowLanding(true);
+        
+        // 5. On arrête le chargement
+        setIsLoading(false);
     }
   };
 
@@ -145,7 +153,7 @@ const App: React.FC = () => {
     );
   }
 
-  // 👇 LOGIQUE D'AFFICHAGE (User Null = Landing OU Auth)
+  // GESTION DE L'AFFICHAGE PRINCIPAL
   if (!user) {
     if (showLanding) {
         return (
