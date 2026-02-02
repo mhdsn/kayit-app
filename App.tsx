@@ -29,6 +29,9 @@ const App: React.FC = () => {
   const [showLanding, setShowLanding] = useState(true);
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'signup'>('login');
 
+  // 👇 NOUVEAU : État pour sécuriser la navigation
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
   useEffect(() => {
     const formatUserFromSession = (session: any): User => {
         const meta = session.user.user_metadata;
@@ -41,7 +44,8 @@ const App: React.FC = () => {
             plan: meta.plan || 'starter',
             currency: meta.currency || 'XOF',
             logo: meta.logo || undefined,
-            brandColor: meta.brandColor || undefined
+            brandColor: meta.brandColor || undefined,
+            address: meta.address || ''
         };
     };
 
@@ -108,28 +112,57 @@ const App: React.FC = () => {
     setCurrentRoute(AppRoute.DASHBOARD);
   };
 
-  // 👇 LOGOUT INSTANTANÉ (Sans chargement, sans attente)
   // 👇 LOGOUT RADICAL (Redirection forcée)
   const handleLogout = async () => {
-    // 1. On vide le stockage local (C'est la mémoire du téléphone)
+    // 1. On vide le stockage
     localStorage.clear();
     sessionStorage.clear();
 
-    // 2. On prévient Supabase (juste pour la forme, on n'attend pas la réponse)
+    // 2. On prévient Supabase
     supabase.auth.signOut();
 
-    // 3. LA SOLUTION ULTIME :
-    // On force le navigateur à recharger la page d'accueil (/)
-    // Cela tue instantanément toute boucle de chargement ou bug d'état React.
+    // 3. Force reload
     window.location.href = '/';
   };
 
-  const handleUpdateUser = async (u: User) => { setUser(u); try { await supabase.auth.updateUser({ data: { full_name: u.name, business_name: u.businessName, phone: u.phone, currency: u.currency, logo: u.logo, brandColor: u.brandColor } }); showNotification("Profil sauvegardé !", 'success'); } catch (e) { showNotification("Erreur de sauvegarde.", 'info'); } };
+  const handleUpdateUser = async (u: User) => { 
+      setUser(u); 
+      try { 
+          await supabase.auth.updateUser({ 
+              data: { 
+                  full_name: u.name, 
+                  business_name: u.businessName, 
+                  phone: u.phone, 
+                  currency: u.currency, 
+                  logo: u.logo, 
+                  brandColor: u.brandColor,
+                  address: u.address
+              } 
+          }); 
+          showNotification("Profil sauvegardé !", 'success'); 
+          setHasUnsavedChanges(false); // Reset protection après save réussi
+      } catch (e) { 
+          showNotification("Erreur de sauvegarde.", 'info'); 
+      } 
+  };
+
   const handleSaveInvoice = async (inv: Invoice) => { const updated = editingInvoice ? invoices.map(i => i.id === inv.id ? inv : i) : [inv, ...invoices]; setInvoices(updated); setEditingInvoice(undefined); setCurrentRoute(AppRoute.INVOICES); showNotification(editingInvoice ? 'Facture mise à jour' : 'Nouvelle facture créée', 'success'); await saveInvoice(inv); loadInvoicesData(); };
   const handleEditInvoice = (inv: Invoice) => { setEditingInvoice(inv); setCurrentRoute(AppRoute.CREATE_INVOICE); };
   const handleDeleteInvoice = async (id: string) => { setInvoices(invoices.filter(i => i.id !== id)); showNotification('Facture supprimée', 'info'); await deleteInvoice(id); };
   const handleCancelForm = () => { setEditingInvoice(undefined); setCurrentRoute(AppRoute.DASHBOARD); };
-  const handleNavigate = (route: AppRoute) => { if (route === AppRoute.CREATE_INVOICE) setEditingInvoice(undefined); setCurrentRoute(route); };
+  
+  // 👇 MODIFICATION : Interception de la navigation
+  const handleNavigate = (route: AppRoute) => { 
+      if (hasUnsavedChanges) {
+          const confirm = window.confirm("Vous avez des modifications non enregistrées. Voulez-vous vraiment quitter ?");
+          if (!confirm) return; // On annule le changement de page
+          setHasUnsavedChanges(false); // On autorise le départ
+      }
+
+      if (route === AppRoute.CREATE_INVOICE) setEditingInvoice(undefined); 
+      setCurrentRoute(route); 
+  };
+
   const handleUpgrade = async (plan: UserPlan) => { if (!user) return; setUser({ ...user, plan: plan }); try { await supabase.auth.updateUser({ data: { plan: plan } }); showNotification(`Bienvenue sur le plan ${plan.charAt(0).toUpperCase() + plan.slice(1)} !`, 'success'); } catch (err) { showNotification("Erreur lors du changement de plan", "info"); } };
   const handleDowngrade = async () => { if (!user) return; setUser({ ...user, plan: 'starter' }); try { await supabase.auth.updateUser({ data: { plan: 'starter' } }); showNotification('Vous êtes repassé au plan Starter.', 'info'); } catch (err) { showNotification("Erreur lors du changement de plan", "info"); } };
 
@@ -178,7 +211,12 @@ const App: React.FC = () => {
           />
         );
       case AppRoute.SETTINGS:
-        return <Settings user={user} onUpdateUser={handleUpdateUser} />;
+        // 👇 PASSAGE DE LA PROP ICI
+        return <Settings 
+            user={user} 
+            onUpdateUser={handleUpdateUser} 
+            setHasUnsavedChanges={setHasUnsavedChanges} 
+        />;
       case AppRoute.PRICING:
         return <Pricing user={user} onUpgrade={handleUpgrade} onDowngrade={handleDowngrade} />;
       default:
