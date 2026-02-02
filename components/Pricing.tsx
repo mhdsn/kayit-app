@@ -17,6 +17,8 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
   };
 
   const handleSubscribe = (planId: string) => {
+      console.log("Clic sur le plan :", planId);
+
       // 1. Si c'est le plan Starter, on utilise la fonction interne
       if (planId === 'starter') {
           onDowngrade();
@@ -25,19 +27,18 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
 
       // 2. Redirection vers Stripe pour PRO et BUSINESS
       if (planId === 'pro' || planId === 'business') {
-          // 👇 C'EST ICI QUE CA SE JOUE
-          // On récupère l'URL actuelle (ex: https://kayit-app.vercel.app ou http://localhost:3000)
-          const currentUrl = window.location.origin;
+          // On récupère le lien de base
+          const baseUrl = STRIPE_LINKS[planId as keyof typeof STRIPE_LINKS];
           
-          // On encode l'email de l'utilisateur pour le pré-remplir sur Stripe (UX sympa)
-          const userEmail = encodeURIComponent(user.email);
-
-          // On construit le lien final
-          // Note: Les liens "buy.stripe.com" ont des configurations fixes pour la redirection.
-          // Mais on pré-remplit l'email pour aider.
-          const finalLink = `${STRIPE_LINKS[planId as keyof typeof STRIPE_LINKS]}?prefilled_email=${userEmail}`;
-          
-          window.location.href = finalLink;
+          if (baseUrl) {
+              // OPTIONNEL MAIS TOP : On ajoute l'email pour l'aider sur Stripe
+              const finalLink = `${baseUrl}?prefilled_email=${encodeURIComponent(user.email)}`;
+              
+              // On force la redirection
+              window.location.href = finalLink;
+          } else {
+              alert("Erreur: Lien de paiement introuvable");
+          }
       }
   };
 
@@ -86,7 +87,6 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
 
         <div className="mb-8">
             <div className="flex items-baseline gap-1">
-                {/* ICI : On force l'affichage en USD directement */}
                 <span className="text-4xl font-bold tracking-tighter">
                     {planId === 'starter' ? 'Gratuit' : formatPrice(price, 'USD')}
                 </span>
@@ -125,9 +125,9 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
                 handleSubscribe(planId);
             }}
             disabled={isCurrentPlan}
-            className={`w-full py-3.5 px-4 rounded-xl text-sm font-bold transition-all ${
+            className={`w-full py-3.5 px-4 rounded-xl text-sm font-bold transition-all active:scale-95 ${
                 isCurrentPlan
-                    ? (planId === 'business' ? 'bg-white/10 text-white/50 border border-white/5' : 'bg-slate-100 text-slate-400 cursor-default')
+                    ? (planId === 'business' ? 'bg-white/10 text-white/50 border border-white/5 cursor-default' : 'bg-slate-100 text-slate-400 cursor-default')
                     : planId === 'business'
                         ? 'bg-brand-600 text-white hover:bg-brand-500 shadow-lg shadow-brand-900/50 hover:-translate-y-0.5'
                         : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-200 hover:-translate-y-0.5'
@@ -172,7 +172,7 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
         <PlanCard 
             planId="pro"
             title="Pro"
-            price={9} // <--- DIRECTEMENT 9 DOLLARS
+            price={9}
             description="Pour les freelances actifs."
             icon={Sparkles}
             colorClass="text-brand-600"
@@ -193,7 +193,7 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
         <PlanCard 
             planId="business"
             title="Business"
-            price={24.99} // <--- DIRECTEMENT 24.99 DOLLARS
+            price={24.99}
             description="Pour les petits business structurés."
             icon={Crown}
             colorClass="text-violet-400"
