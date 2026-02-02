@@ -108,32 +108,26 @@ const App: React.FC = () => {
     setCurrentRoute(AppRoute.DASHBOARD);
   };
 
-  // 👇 LOGOUT NUCLÉAIRE (VIDE LE CACHE NAVIGATEUR)
+ // 👇 LOGOUT INSTANTANÉ (Sans chargement, sans attente)
   const handleLogout = async () => {
-    // 1. On coupe l'accès visuel tout de suite
-    setIsLoading(true);
+    // 1. On coupe tout lien avec le navigateur IMMÉDIATEMENT
+    localStorage.removeItem('sb-<ton-id-projet>-auth-token'); // Nettoyage ciblé
+    localStorage.clear(); // Nettoyage brutal
+    sessionStorage.clear();
 
-    try {
-        // 2. On tente la déconnexion propre Supabase
-        await supabase.auth.signOut();
-    } catch (error) {
-        console.error("Erreur déconnexion:", error);
-    } finally {
-        // 3. LA CLÉ DU SUCCÈS : On vide manuellement le stockage du navigateur
-        // C'est ça qui empêche la reconnexion au refresh !
-        localStorage.clear(); 
-        sessionStorage.clear();
+    // 2. On met à jour l'interface TOUT DE SUITE (Pas de Loading = Pas de cercle qui tourne)
+    setIsLoading(false); // On s'assure que le loader est éteint
+    setIsMobileOpen(false);
+    setAuthInitialMode('login');
+    setShowLanding(true);
+    
+    // 3. L'étape cruciale : On met user à null EN DERNIER pour déclencher le changement d'écran
+    setInvoices([]);
+    setUser(null);
 
-        // 4. On remet l'application à zéro
-        setIsMobileOpen(false);
-        setUser(null);
-        setInvoices([]);
-        setAuthInitialMode('login');
-        setShowLanding(true);
-        
-        // 5. On arrête le chargement
-        setIsLoading(false);
-    }
+    // 4. On envoie la requête à Supabase en "Tâche de fond"
+    // On ne met PAS de 'await'. On s'en fiche si ça échoue, l'utilisateur est déjà parti.
+    supabase.auth.signOut(); 
   };
 
   const handleUpdateUser = async (u: User) => { setUser(u); try { await supabase.auth.updateUser({ data: { full_name: u.name, business_name: u.businessName, phone: u.phone, currency: u.currency, logo: u.logo, brandColor: u.brandColor } }); showNotification("Profil sauvegardé !", 'success'); } catch (e) { showNotification("Erreur de sauvegarde.", 'info'); } };
