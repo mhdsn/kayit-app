@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- CORRECTIFS MOBILE --- */
+
+/* 1. Empêcher le site de flotter gauche-droite */
+html, body, #root {
+  width: 100%;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* 2. Empêcher le zoom automatique sur iPhone */
+@media screen and (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
