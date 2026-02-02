@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { User, CURRENCIES } from '../types';
-import { Save, User as UserIcon, Building, Mail, Phone, MapPin, Globe, Image as ImageIcon, Palette, Lock, Crown, Upload, Trash2, AlertCircle } from 'lucide-react';
+import { Save, User as UserIcon, Building, Mail, Phone, MapPin, Globe, Image as ImageIcon, Palette, Lock, Crown, Upload, Trash2, AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 interface SettingsProps {
   user: User;
@@ -11,13 +11,46 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
   const [formData, setFormData] = useState<User>(user);
   const [showSuccess, setShowSuccess] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
+  
+  // 👇 NOUVEL ÉTAT : Pour savoir si des modifs sont en cours
+  const [isDirty, setIsDirty] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const isBusiness = user.plan === 'business';
+
+  // 1. EFFET : Détecter les changements (Dirty Check)
+  useEffect(() => {
+    const normalize = (val: string | undefined) => val || '';
+    
+    const hasChanges = 
+        normalize(formData.name) !== normalize(user.name) ||
+        normalize(formData.email) !== normalize(user.email) ||
+        normalize(formData.businessName) !== normalize(user.businessName) ||
+        normalize(formData.phone) !== normalize(user.phone) ||
+        normalize(formData.address) !== normalize(user.address) ||
+        normalize(formData.currency) !== normalize(user.currency || 'XOF') ||
+        normalize(formData.brandColor) !== normalize(user.brandColor || '#2563EB') ||
+        formData.logo !== user.logo;
+
+    setIsDirty(hasChanges);
+  }, [formData, user]);
+
+  // 2. EFFET : Protection fermeture navigateur / Refresh
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = ''; // Standard pour déclencher l'alerte navigateur
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    setShowSuccess(false);
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,13 +59,11 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
 
     if (!file) return;
 
-    // Validation type
     if (!file.type.startsWith('image/')) {
         setLogoError("Le fichier doit être une image (PNG, JPG).");
         return;
     }
 
-    // Validation taille (Max 500KB pour ne pas saturer le localStorage)
     if (file.size > 500 * 1024) {
         setLogoError("L'image est trop volumineuse (Max 500 Ko).");
         return;
@@ -53,16 +84,30 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isDirty) return;
+
     onUpdateUser(formData);
+    setIsDirty(false); // On remet à zéro après sauvegarde
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 3000);
   };
 
   return (
     <div className="max-w-3xl mx-auto pb-12">
-      <div className="mb-8">
+      <div className="mb-6">
         <h2 className="text-3xl font-bold text-slate-900 font-display">Paramètres</h2>
         <p className="text-slate-500 mt-1">Gérez vos préférences et les informations de votre entreprise.</p>
+      </div>
+
+      {/* 👇 BANNIÈRE ALERTE VISUELLE */}
+      <div className={`transition-all duration-300 ease-in-out overflow-hidden mb-6 ${isDirty ? 'max-h-24 opacity-100' : 'max-h-0 opacity-0'}`}>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3 text-amber-800 shadow-sm animate-in slide-in-from-top-2">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div>
+                <p className="text-sm font-bold">Modifications non enregistrées</p>
+                <p className="text-xs text-amber-700">Pensez à sauvegarder avant de quitter cette page.</p>
+            </div>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -107,13 +152,13 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
                                 <img src={formData.logo} alt="Logo Preview" className="w-full h-full object-contain p-1" />
                                 {isBusiness && (
                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                        <button 
-                                            type="button" 
-                                            onClick={removeLogo}
-                                            className="p-1.5 bg-white rounded-full text-red-600 hover:bg-red-50"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={removeLogo}
+                                                className="p-1.5 bg-white rounded-full text-red-600 hover:bg-red-50"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
                                     </div>
                                 )}
                             </>
@@ -199,7 +244,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
                 name="currency"
                 value={formData.currency || 'XOF'}
                 onChange={handleChange}
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all appearance-none text-slate-900"
+                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all appearance-none text-slate-900 cursor-pointer"
               >
                 {CURRENCIES.map(curr => (
                   <option key={curr.code} value={curr.code}>
@@ -308,18 +353,25 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-4 pt-4">
+        {/* 👇 BOUTON SAUVEGARDER INTELLIGENT */}
+        <div className="sticky bottom-4 z-20 flex items-center justify-end gap-4 pointer-events-none">
             {showSuccess && (
-                <span className="text-emerald-600 font-medium text-sm animate-in fade-in slide-in-from-right-4">
-                    Modifications enregistrées !
-                </span>
+                <div className="bg-emerald-600 text-white px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 pointer-events-auto">
+                    <CheckCircle2 className="w-4 h-4" /> Modifications enregistrées !
+                </div>
             )}
+            
             <button
                 type="submit"
-                className="flex items-center px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/25 active:scale-95"
+                disabled={!isDirty} // Désactivé si pas de changements
+                className={`pointer-events-auto flex items-center px-6 py-3 rounded-xl font-bold shadow-lg transition-all transform active:scale-95 ${
+                    isDirty 
+                    ? 'bg-brand-600 text-white hover:bg-brand-700 shadow-brand-500/30 translate-y-0' 
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                }`}
             >
                 <Save className="w-5 h-5 mr-2" />
-                Enregistrer
+                {isDirty ? 'Enregistrer les modifications' : 'Aucune modification'}
             </button>
         </div>
       </form>
