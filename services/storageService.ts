@@ -3,9 +3,15 @@ import { supabase } from './supabaseClient';
 
 // Charger toutes les factures depuis Supabase
 export const getInvoices = async (): Promise<Invoice[]> => {
+  // 1. On récupère l'utilisateur actuel pour filtrer
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) return [];
+
   const { data, error } = await supabase
     .from('invoices')
     .select('*')
+    .eq('user_id', user.id) // 🔒 Sécurité supplémentaire : on filtre par user
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -15,19 +21,22 @@ export const getInvoices = async (): Promise<Invoice[]> => {
 
   if (!data) return [];
 
-  // On convertit le format SQL (snake_case) vers ton App (camelCase)
+  // 2. Mapping : Comme ta base de données utilise déjà le camelCase (grâce aux guillemets dans le SQL)
+  // On récupère les données directement.
   return data.map((inv: any) => ({
     id: inv.id,
-    number: inv.number,           // Attention : bien utiliser 'number' ici
-    clientName: inv.client_name,
-    clientEmail: inv.client_email,
+    number: inv.number,
+    clientName: inv.clientName,       // Correction : clientName (pas client_name)
+    clientEmail: inv.clientEmail,     // Correction : clientEmail
+    clientAddress: inv.clientAddress, // Ajouté
     date: inv.date,
-    dueDate: inv.due_date,
+    dueDate: inv.dueDate,             // Correction : dueDate
     status: inv.status,
     currency: inv.currency,
-    items: inv.items,
+    items: inv.items,                 // Supabase gère le JSON automatiquement
     total: inv.total,
-    notes: inv.notes
+    notes: inv.notes,
+    paymentMethod: inv.paymentMethod  // Ajouté
   }));
 };
 
@@ -41,22 +50,25 @@ export const saveInvoice = async (invoice: Invoice) => {
   }
 
   // 2. On prépare l'objet pour la base de données
+  // On utilise les clés exactes de la table SQL (camelCase)
   const invoiceData = {
     id: invoice.id,
     user_id: user.id,
     number: invoice.number,
-    client_name: invoice.clientName,
-    client_email: invoice.clientEmail,
+    "clientName": invoice.clientName,       // Correspond à la colonne SQL "clientName"
+    "clientEmail": invoice.clientEmail,
+    "clientAddress": invoice.clientAddress,
     date: invoice.date,
-    due_date: invoice.dueDate,
+    "dueDate": invoice.dueDate || null,     // Gestion du null pour l'optionnel
     status: invoice.status,
     currency: invoice.currency,
     items: invoice.items,
     total: invoice.total,
-    notes: invoice.notes
+    notes: invoice.notes,
+    "paymentMethod": invoice.paymentMethod
   };
 
-  // 3. On envoie à Supabase (Upsert = Update ou Insert)
+  // 3. On envoie à Supabase
   const { error } = await supabase
     .from('invoices')
     .upsert(invoiceData);
