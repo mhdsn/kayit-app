@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Invoice, InvoiceItem, User, formatPrice } from '../types';
-import { Plus, Trash2, Save, ArrowLeft, Lock, Calendar, Hash, MapPin, Mail, User as UserIcon, Eye, X, Download, FileText, ChevronDown, CheckCircle2, Clock, File, Wallet, AlignLeft, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Save, ArrowLeft, Lock, Mail, User as UserIcon, Eye, X, Download, FileText, ChevronDown, Wallet, AlignLeft, Sparkles, MapPin, Search } from 'lucide-react';
 import { getInvoicePdfBlobUrl, generateInvoicePDF } from '../services/pdfService';
 import { supabase } from '../services/supabaseClient'; 
 
@@ -82,9 +82,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
   const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '');
   const [clientAddress, setClientAddress] = useState(initialData?.clientAddress || '');
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
-  const [dueDate, setDueDate] = useState(initialData?.dueDate || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]); 
+  // 🗑️ SUPPRESSION DE DUEDATE ICI
+  
   const [status, setStatus] = useState<Invoice['status']>(initialData?.status || 'pending');
-  // 👇 Je l'avais oublié, le revoici !
   const [paymentMethod, setPaymentMethod] = useState(initialData?.paymentMethod || ''); 
   const [notes, setNotes] = useState(initialData?.notes || '');
   const [currency, setCurrency] = useState(initialData?.currency || user.currency || 'XOF');
@@ -137,7 +137,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
       clientEmail,
       clientAddress,
       date,
-      dueDate,
+      // dueDate est retiré ou mis à undefined/null selon ton type, ici on l'omet
       items,
       total: calculateTotal(),
       status: status,
@@ -288,10 +288,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
                                     <label className="text-xs font-semibold text-slate-500 mb-1 block">Date</label>
                                     <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none" />
                                 </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Échéance</label>
-                                    <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none" />
-                                </div>
+                                {/* 🗑️ CHAMPS ÉCHÉANCE SUPPRIMÉ ICI */}
                                 <div>
                                     <label className="text-xs font-semibold text-slate-500 mb-1 block">Statut</label>
                                     <div className="relative">
@@ -303,7 +300,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
                                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-50 pointer-events-none" />
                                     </div>
                                 </div>
-                                {/* 👇 RESTAURATION DU MODE DE PAIEMENT */}
                                 <div className="sm:col-span-2">
                                     <label className="text-xs font-semibold text-slate-500 mb-1 block flex items-center gap-1">
                                         <Wallet className="w-3 h-3" /> Mode de paiement

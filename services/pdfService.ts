@@ -1,10 +1,10 @@
 import { jsPDF } from 'jspdf';
-import { Invoice, User, formatPrice } from '../types';
+import { Invoice, User } from '../types';
 
 // Palette par défaut
 const STANDARD_BLUE = '#2563eb'; 
-const TEXT_DARK = '#1e293b'; // Slate-800
-const TEXT_GRAY = '#64748b'; // Slate-500
+const TEXT_DARK = '#1e293b'; 
+const TEXT_GRAY = '#64748b'; 
 
 const getTheme = (user: User) => {
   const isBusiness = user.plan === 'business';
@@ -27,6 +27,11 @@ const getTheme = (user: User) => {
   };
 };
 
+const formatMoney = (amount: number, currency: string = 'XOF') => {
+    // Formatage propre avec espace pour les milliers
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: currency }).format(amount);
+};
+
 const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -36,13 +41,6 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
   const isBusiness = user.plan === 'business';
   const isStarter = user.plan === 'starter';
   const theme = getTheme(user);
-  
-  // Formatter propre
-  const formatMoney = (amount: number) => {
-    const cleanValue = amount.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-    const currency = user.currency || 'USD';
-    return `${cleanValue} ${currency}`;
-  };
   
   const setFont = (type: 'bold' | 'normal' | 'italic', size: number, color: string) => {
     doc.setFont('helvetica', type);
@@ -125,6 +123,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       setFont('bold', 9, theme.text.primary);
       doc.text("Date d'émission", margin, dateSectionY);
       setFont('normal', 9, theme.text.secondary);
+      // Date uniquement, pas d'échéance
       doc.text(new Date(invoice.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }), margin, dateSectionY + 5);
 
       cursorY = dateSectionY + 20;
@@ -160,9 +159,9 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
           doc.text(splitDesc, colDesc + 5, cursorY + 3);
           setFont('normal', 9, theme.text.secondary);
           doc.text(item.quantity.toString(), colQty, cursorY + 3, { align: 'center' });
-          doc.text(formatMoney(item.price), colPrice, cursorY + 3, { align: 'right' });
+          doc.text(formatMoney(item.price, invoice.currency), colPrice, cursorY + 3, { align: 'right' });
           setFont('bold', 9, theme.text.primary);
-          doc.text(formatMoney(totalItem), colTotal - 5, cursorY + 3, { align: 'right' });
+          doc.text(formatMoney(totalItem, invoice.currency), colTotal - 5, cursorY + 3, { align: 'right' });
           cursorY += rowHeight;
       });
       
@@ -171,7 +170,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       doc.line(margin, cursorY, pageWidth - margin, cursorY);
       cursorY += 10;
 
-      // NOTES ET PAIEMENT (Business - Modifié)
+      // NOTES ET PAIEMENT
       const summaryWidth = 100;
       const notesWidth = pageWidth - margin*2 - summaryWidth - 10;
       let notesY = cursorY;
@@ -183,7 +182,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
               notesY += 8;
           }
           if (invoice.notes) {
-               setFont('italic', 9, theme.text.secondary); // Italique et gris
+               setFont('italic', 9, theme.text.secondary);
                const splitNotes = doc.splitTextToSize(invoice.notes, notesWidth);
                doc.text(splitNotes, margin, notesY + 4);
           }
@@ -200,7 +199,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       setFont('bold', 11, theme.text.white);
       doc.text("TOTAL À PAYER", summaryX + 5, totalTextY);
       setFont('bold', 14, theme.text.white);
-      doc.text(formatMoney(invoice.total), pageWidth - margin - 5, totalTextY, { align: 'right' });
+      doc.text(formatMoney(invoice.total, invoice.currency), pageWidth - margin - 5, totalTextY, { align: 'right' });
 
   } else {
       // =================================================================
@@ -234,6 +233,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       
       setFont('normal', 10, TEXT_GRAY);
       const dateStr = new Date(invoice.date).toLocaleDateString('fr-FR');
+      // Date uniquement, pas d'échéance ici
       doc.text(`Date : ${dateStr}`, rightX, cursorY + 17, { align: 'right' });
 
       if (invoice.status === 'paid') {
@@ -297,10 +297,10 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
           
           doc.text(item.quantity.toString(), colQty, cursorY, { align: 'center' });
           
-          doc.text(formatMoney(item.price), colPrice, cursorY, { align: 'right' });
+          doc.text(formatMoney(item.price, invoice.currency), colPrice, cursorY, { align: 'right' });
           
           setFont('bold', 10, TEXT_DARK);
-          doc.text(formatMoney(item.price * item.quantity), colTotal - 5, cursorY, { align: 'right' });
+          doc.text(formatMoney(item.price * item.quantity, invoice.currency), colTotal - 5, cursorY, { align: 'right' });
           
           cursorY += 10;
       });
@@ -313,19 +313,16 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       const summaryWidth = 100;
       const summaryX = pageWidth - margin - summaryWidth;
 
-      // 👇 ICI : CORRECTION DESIGN NOTES (Plus de titre "Informations")
       if (invoice.notes || invoice.paymentMethod) {
           const notesWidth = pageWidth - margin*2 - summaryWidth - 10;
-          let noteY = cursorY; // Aligné avec le haut du bloc totaux
+          let noteY = cursorY;
 
-          // Paiement en Gras/Noir
           if (invoice.paymentMethod) {
               setFont('bold', 9, TEXT_DARK); 
               doc.text(`Paiement via : ${invoice.paymentMethod}`, margin, noteY + 4);
               noteY += 8;
           }
 
-          // Notes en Italique/Gris
           if (invoice.notes) {
               setFont('italic', 9, TEXT_GRAY);
               const splitNotes = doc.splitTextToSize(invoice.notes, notesWidth);
@@ -333,15 +330,13 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
           }
       }
 
-      // Sous-total
       setFont('normal', 10, TEXT_GRAY);
       doc.text("Sous-total", summaryX + 5, cursorY);
       setFont('bold', 10, TEXT_DARK);
-      doc.text(formatMoney(invoice.total), pageWidth - margin - 5, cursorY, { align: 'right' });
+      doc.text(formatMoney(invoice.total, invoice.currency), pageWidth - margin - 5, cursorY, { align: 'right' });
 
       cursorY += 8;
 
-      // Boite Total
       doc.setFillColor('#f8fafc');
       doc.roundedRect(summaryX, cursorY, summaryWidth, 14, 2, 2, 'F');
 
@@ -350,7 +345,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       doc.text("Total à payer", summaryX + 5, totalY);
       
       setFont('bold', 12, STANDARD_BLUE); 
-      doc.text(formatMoney(invoice.total), pageWidth - margin - 5, totalY, { align: 'right' });
+      doc.text(formatMoney(invoice.total, invoice.currency), pageWidth - margin - 5, totalY, { align: 'right' });
 
       if (isStarter) {
         setFont('normal', 10, '#94a3b8');
@@ -363,39 +358,34 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
   return doc;
 };
 
-// ... (GARDE TOUT LE DÉBUT DE TON FICHIER : getTheme, createInvoiceDoc etc.) ...
-
-// 👇 REMPLACE JUSTE LA FIN DU FICHIER PAR CECI 👇
-
+// 👇 LE CORRECTIF MOBILE EST ICI 👇
 export const generateInvoicePDF = async (invoice: Invoice, user: User) => {
   const doc = createInvoiceDoc(invoice, user);
   const fileName = invoice.number ? `Facture-${invoice.number}.pdf` : 'Facture.pdf';
 
-  // Détection Mobile
+  // Détection Mobile (User Agent simple)
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-  // 1. MODE MOBILE : On ouvre le menu de partage natif (iOS/Android)
+  // 1. MODE MOBILE : Partage Natif
   if (isMobile && navigator.share) {
     try {
-      // On convertit le PDF en fichier virtuel (Blob)
       const blob = doc.output('blob');
       const file = new File([blob], fileName, { type: 'application/pdf' });
 
-      // On vérifie si le téléphone accepte le partage de fichiers
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
           title: `Facture ${invoice.number || ''}`,
           text: `Voici la facture de ${invoice.clientName}`,
         });
-        return; // Si le partage fonctionne, on s'arrête là
+        return; // Terminé si partage réussi
       }
     } catch (error) {
-      console.warn("Partage annulé ou échoué, repli sur le téléchargement classique.");
+      console.warn("Partage mobile annulé, on tente le téléchargement classique.");
     }
   }
 
-  // 2. MODE PC (ou si le partage échoue) : Téléchargement classique
+  // 2. MODE PC (ou Fallback) : Téléchargement Classique
   doc.save(fileName);
 };
 
