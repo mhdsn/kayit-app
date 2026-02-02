@@ -10,7 +10,7 @@ import {
   ChevronRight,
   Building2,
   Infinity,
-  PlusCircle // Ajouté car tu l'utilisais
+  PlusCircle
 } from 'lucide-react';
 import { AppRoute, Invoice, User } from '../types';
 
@@ -37,11 +37,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: AppRoute.DASHBOARD, label: 'Tableau de bord', icon: LayoutDashboard },
     { id: AppRoute.INVOICES, label: 'Mes factures', icon: FileText },
-    // J'ai remis Créer facture ici au cas où tu le veux dans le menu
     { id: AppRoute.CREATE_INVOICE, label: 'Créer une facture', icon: PlusCircle },
   ];
 
-  // --- LOGIQUE DES QUOTAS (Je n'y touche pas, c'est parfait) ---
+  // --- LOGIQUE DES QUOTAS ---
   const calculateQuota = () => {
     const now = new Date();
     const currentMonth = now.getMonth();
@@ -86,17 +85,18 @@ const Sidebar: React.FC<SidebarProps> = ({
         />
       )}
 
-      {/* 2. BARRE LATÉRALE (Structure Responsive corrigée) */}
+      {/* 2. BARRE LATÉRALE */}
       <aside className={`
         fixed md:static inset-y-0 left-0 z-50
-        w-72 bg-white border-r border-slate-200 flex flex-col h-full
+        w-72 bg-white border-r border-slate-200 flex flex-col
         transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
         md:translate-x-0
+        h-[100dvh] md:h-screen /* 👇 Correction Hauteur pour Mobile */
       `}>
         
         {/* EN-TÊTE : Logo + Titre */}
-        <div className="p-6 pb-8 flex items-center justify-between">
+        <div className="p-6 pb-8 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
                 {user.logo ? (
                     <img src={user.logo} alt="Logo" className="w-10 h-10 rounded-xl object-cover border border-slate-100" />
@@ -174,9 +174,8 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
         </nav>
 
-        {/* WIDGET QUOTA & UPSELL (Fixé en bas de la nav) */}
-        <div className="px-4 mb-4 mt-auto pt-4">
-            
+        {/* WIDGET QUOTA & UPSELL */}
+        <div className="px-4 mb-4 mt-auto pt-4 flex-shrink-0">
             {/* Widget Quota */}
             {user.plan !== 'business' ? (
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 mb-3">
@@ -204,7 +203,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </div>
             )}
 
-            {/* Upsell Card (Publicité Interne) */}
+            {/* Upsell Card */}
             {user.plan !== 'business' && (
                 <div 
                     className={`rounded-xl p-4 text-white shadow-lg relative overflow-hidden group cursor-pointer ${
@@ -225,7 +224,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* PIED DE PAGE : PROFIL */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+        <div className="p-4 pb-8 md:pb-4 border-t border-slate-100 bg-slate-50/50 flex-shrink-0">
             <div className="flex items-center gap-3 mb-3">
                 <div className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-sm font-bold text-brand-600 shadow-sm">
                     {user.name.charAt(0)}
@@ -235,8 +234,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <p className="text-xs text-slate-500 truncate">{user.email}</p>
                 </div>
             </div>
+            
+            {/* 👇 BOUTON DECONNEXION CORRIGÉ */}
             <button 
-                onClick={onLogout}
+                onClick={() => {
+                    setIsMobileOpen(false); // 1. Fermer le menu
+                    onLogout();             // 2. Déconnecter
+                }}
                 className="flex items-center justify-center w-full px-4 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-red-600 transition-colors shadow-sm"
             >
                 <LogOut className="w-3.5 h-3.5 mr-2" />
