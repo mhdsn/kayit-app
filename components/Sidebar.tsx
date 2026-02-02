@@ -80,19 +80,19 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* 1. OVERLAY MOBILE (Fond noir) */}
       {isMobileOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/50 z-40 md:hidden backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 bg-slate-900/60 z-[90] md:hidden backdrop-blur-sm transition-opacity"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
 
       {/* 2. BARRE LATÉRALE */}
       <aside className={`
-        fixed md:static inset-y-0 left-0 z-50
+        fixed md:static inset-y-0 left-0 z-[100]
         w-72 bg-white border-r border-slate-200 flex flex-col
         transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
         md:translate-x-0
-        h-[100dvh] md:h-screen /* 👇 Correction Hauteur pour Mobile */
+        h-[100dvh] md:h-screen
       `}>
         
         {/* EN-TÊTE : Logo + Titre */}
@@ -114,14 +114,14 @@ const Sidebar: React.FC<SidebarProps> = ({
             {/* Bouton fermer sur mobile uniquement */}
             <button 
               onClick={() => setIsMobileOpen(false)}
-              className="md:hidden p-2 text-slate-400 hover:bg-slate-50 rounded-lg"
+              className="md:hidden p-2 text-slate-400 hover:bg-slate-50 rounded-lg active:scale-95 transition-transform"
             >
               <X className="w-6 h-6" />
             </button>
         </div>
 
         {/* NAVIGATION SCROLLABLE */}
-        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-4 space-y-1 overflow-y-auto overflow-x-hidden touch-pan-y">
             {/* Section Principale */}
             <div className="mb-6">
                 <p className="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Principal</p>
@@ -129,7 +129,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <button
                         key={item.id}
                         onClick={() => { onChangeRoute(item.id); setIsMobileOpen(false); }}
-                        className={`group flex items-center justify-between w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 mb-1 ${
+                        className={`group flex items-center justify-between w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 mb-1 active:scale-95 ${
                             currentRoute === item.id 
                             ? 'bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-200' 
                             : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -150,7 +150,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 
                 <button
                     onClick={() => { onChangeRoute(AppRoute.SETTINGS); setIsMobileOpen(false); }}
-                    className={`group flex items-center justify-between w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 mb-1 ${
+                    className={`group flex items-center justify-between w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 mb-1 active:scale-95 ${
                         currentRoute === AppRoute.SETTINGS ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-200' : 'text-slate-600 hover:bg-slate-50'
                     }`}
                 >
@@ -162,7 +162,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
                 <button
                     onClick={() => { onChangeRoute(AppRoute.PRICING); setIsMobileOpen(false); }}
-                    className={`group flex items-center justify-between w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    className={`group flex items-center justify-between w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 active:scale-95 ${
                         currentRoute === AppRoute.PRICING ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-200' : 'text-slate-600 hover:bg-slate-50'
                     }`}
                 >
@@ -206,7 +206,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             {/* Upsell Card */}
             {user.plan !== 'business' && (
                 <div 
-                    className={`rounded-xl p-4 text-white shadow-lg relative overflow-hidden group cursor-pointer ${
+                    className={`rounded-xl p-4 text-white shadow-lg relative overflow-hidden group cursor-pointer active:scale-95 transition-transform ${
                         user.plan === 'pro' ? 'bg-gradient-to-br from-violet-900 to-slate-900' : 'bg-gradient-to-br from-slate-900 to-slate-800'
                     }`} 
                     onClick={() => onChangeRoute(AppRoute.PRICING)}
@@ -235,13 +235,17 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </div>
             </div>
             
-            {/* 👇 BOUTON DECONNEXION CORRIGÉ */}
+            {/* 👇 BOUTON DECONNEXION BLINDÉ POUR MOBILE */}
             <button 
-                onClick={() => {
-                    setIsMobileOpen(false); // 1. Fermer le menu
-                    onLogout();             // 2. Déconnecter
+                onClick={(e) => {
+                    // Empêche le clic de traverser ou de double-cliquer
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    setIsMobileOpen(false); 
+                    onLogout(); // Appelle la fonction "Hard Refresh" de App.tsx
                 }}
-                className="flex items-center justify-center w-full px-4 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-red-600 transition-colors shadow-sm"
+                className="flex items-center justify-center w-full px-4 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-red-600 active:bg-slate-100 active:scale-95 transition-all shadow-sm touch-manipulation"
             >
                 <LogOut className="w-3.5 h-3.5 mr-2" />
                 Se déconnecter

@@ -109,25 +109,19 @@ const App: React.FC = () => {
   };
 
   // 👇 LOGOUT INSTANTANÉ (Sans chargement, sans attente)
+  // 👇 LOGOUT RADICAL (Redirection forcée)
   const handleLogout = async () => {
-    // 1. On coupe tout lien avec le navigateur IMMÉDIATEMENT
+    // 1. On vide le stockage local (C'est la mémoire du téléphone)
     localStorage.clear();
     sessionStorage.clear();
 
-    // 2. On met à jour l'interface TOUT DE SUITE
-    // IMPORTANT : On ne met PAS isLoading(true) ici !
-    setIsLoading(false); 
-    setIsMobileOpen(false);
-    setAuthInitialMode('login');
-    setShowLanding(true);
-    
-    // 3. On coupe l'utilisateur
-    setInvoices([]);
-    setUser(null);
+    // 2. On prévient Supabase (juste pour la forme, on n'attend pas la réponse)
+    supabase.auth.signOut();
 
-    // 4. On envoie la requête à Supabase en "Tâche de fond"
-    // On ne met PAS de 'await'.
-    supabase.auth.signOut(); 
+    // 3. LA SOLUTION ULTIME :
+    // On force le navigateur à recharger la page d'accueil (/)
+    // Cela tue instantanément toute boucle de chargement ou bug d'état React.
+    window.location.href = '/';
   };
 
   const handleUpdateUser = async (u: User) => { setUser(u); try { await supabase.auth.updateUser({ data: { full_name: u.name, business_name: u.businessName, phone: u.phone, currency: u.currency, logo: u.logo, brandColor: u.brandColor } }); showNotification("Profil sauvegardé !", 'success'); } catch (e) { showNotification("Erreur de sauvegarde.", 'info'); } };
