@@ -363,9 +363,39 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
   return doc;
 };
 
-export const generateInvoicePDF = (invoice: Invoice, user: User) => {
+// ... (GARDE TOUT LE DÉBUT DE TON FICHIER : getTheme, createInvoiceDoc etc.) ...
+
+// 👇 REMPLACE JUSTE LA FIN DU FICHIER PAR CECI 👇
+
+export const generateInvoicePDF = async (invoice: Invoice, user: User) => {
   const doc = createInvoiceDoc(invoice, user);
   const fileName = invoice.number ? `Facture-${invoice.number}.pdf` : 'Facture.pdf';
+
+  // Détection Mobile
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  // 1. MODE MOBILE : On ouvre le menu de partage natif (iOS/Android)
+  if (isMobile && navigator.share) {
+    try {
+      // On convertit le PDF en fichier virtuel (Blob)
+      const blob = doc.output('blob');
+      const file = new File([blob], fileName, { type: 'application/pdf' });
+
+      // On vérifie si le téléphone accepte le partage de fichiers
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Facture ${invoice.number || ''}`,
+          text: `Voici la facture de ${invoice.clientName}`,
+        });
+        return; // Si le partage fonctionne, on s'arrête là
+      }
+    } catch (error) {
+      console.warn("Partage annulé ou échoué, repli sur le téléchargement classique.");
+    }
+  }
+
+  // 2. MODE PC (ou si le partage échoue) : Téléchargement classique
   doc.save(fileName);
 };
 

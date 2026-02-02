@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Invoice, User, formatPrice } from '../types';
-// 👇 CHANGEMENT 1 : On utilise notre nouveau générateur compatible Mobile
-import { generateAndDownloadPDF } from '../utils/pdfGenerator';
+import { generateInvoicePDF } from '../services/pdfService';
 import { Download, Trash2, Search, Filter, FileText, Pencil, Check, AlertTriangle, Lock, Loader2 } from 'lucide-react';
 
 interface InvoiceListProps {
@@ -17,7 +16,7 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
   
-  // 👇 CHANGEMENT 2 : État pour suivre quelle facture est en cours de téléchargement
+  // 👇 NOUVEAU : Pour gérer le chargement pendant le téléchargement
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   
   const filterMenuRef = useRef<HTMLDivElement>(null);
@@ -35,18 +34,18 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 👇 CHANGEMENT 3 : Nouvelle fonction de téléchargement avec Loader
+  // 👇 MODIFIÉ : Fonction async pour gérer le partage mobile
   const handleDownload = async (invoice: Invoice) => {
-    setDownloadingId(invoice.id); // On allume le loader
+    setDownloadingId(invoice.id); // Active le loader
     
-    // Petit délai pour laisser React afficher le loader avant que le calcul lourd commence
+    // Petit timeout pour laisser le temps à l'UI de s'afficher
     setTimeout(async () => {
         try {
-            await generateAndDownloadPDF(invoice, user);
+            await generateInvoicePDF(invoice, user);
         } catch (error) {
-            console.error("Erreur download", error);
+            console.error("Erreur génération PDF", error);
         } finally {
-            setDownloadingId(null); // On éteint le loader
+            setDownloadingId(null); // Désactive le loader
         }
     }, 50);
   };
@@ -208,7 +207,8 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
               <tbody className="divide-y divide-slate-100">
                 {filteredInvoices.map((invoice) => {
                     const status = statusConfig[invoice.status] || statusConfig.draft;
-                    const isDownloading = downloadingId === invoice.id; // On vérifie si CETTE facture charge
+                    // On vérifie si c'est CETTE facture qui est en cours de téléchargement
+                    const isDownloading = downloadingId === invoice.id;
 
                     return (
                     <tr key={invoice.id} className="hover:bg-slate-50/80 transition-colors group">
@@ -240,12 +240,12 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
                                         <Pencil className="w-4 h-4" />
                                     </button>
                                     )}
-                                    {/* 👇 BOUTON DOWNLOAD INTELLIGENT */}
+                                    {/* 👇 BOUTON MODIFIÉ AVEC LOADER */}
                                     <button
                                         onClick={() => handleDownload(invoice)}
                                         disabled={isDownloading}
                                         className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors border border-transparent hover:border-brand-200"
-                                        title="Télécharger PDF"
+                                        title={isDownloading ? "Génération..." : "Télécharger PDF"}
                                     >
                                         {isDownloading ? (
                                             <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
@@ -268,7 +268,7 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
                                         onClick={() => handleDownload(invoice)}
                                         disabled={isDownloading}
                                         className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors border border-transparent hover:border-brand-200"
-                                        title="Télécharger PDF"
+                                        title={isDownloading ? "Génération..." : "Télécharger PDF"}
                                     >
                                         {isDownloading ? (
                                             <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
