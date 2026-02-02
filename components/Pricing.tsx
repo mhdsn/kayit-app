@@ -10,22 +10,34 @@ interface PricingProps {
 
 const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
   
-  // Tes liens Stripe
+  // Tes liens Stripe de base
   const STRIPE_LINKS = {
     pro: "https://buy.stripe.com/test_14A00iaAd7Ks18M6QZdQQ00",
     business: "https://buy.stripe.com/test_eVq8wO9w9d4MbNq8Z7dQQ01"
   };
 
   const handleSubscribe = (planId: string) => {
-      // Si c'est le plan Starter, on utilise la fonction interne
+      // 1. Si c'est le plan Starter, on utilise la fonction interne
       if (planId === 'starter') {
           onDowngrade();
           return;
       }
 
-      // Redirection vers Stripe pour PRO et BUSINESS
+      // 2. Redirection vers Stripe pour PRO et BUSINESS
       if (planId === 'pro' || planId === 'business') {
-          window.location.href = STRIPE_LINKS[planId];
+          // 👇 C'EST ICI QUE CA SE JOUE
+          // On récupère l'URL actuelle (ex: https://kayit-app.vercel.app ou http://localhost:3000)
+          const currentUrl = window.location.origin;
+          
+          // On encode l'email de l'utilisateur pour le pré-remplir sur Stripe (UX sympa)
+          const userEmail = encodeURIComponent(user.email);
+
+          // On construit le lien final
+          // Note: Les liens "buy.stripe.com" ont des configurations fixes pour la redirection.
+          // Mais on pré-remplit l'email pour aider.
+          const finalLink = `${STRIPE_LINKS[planId as keyof typeof STRIPE_LINKS]}?prefilled_email=${userEmail}`;
+          
+          window.location.href = finalLink;
       }
   };
 
