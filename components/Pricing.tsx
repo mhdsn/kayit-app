@@ -59,8 +59,8 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
       features: [
         'Factures illimitées',
         'PDF 100% Personnalisé',
-        'Gestion des Dépenses 💸', // ✨ NOUVEAU
-        'Analyse Financière (Bénéfices) 📊', // ✨ NOUVEAU
+        'Gestion des Dépenses', // ✨ NOUVEAU
+        'Analyse Financière (Bénéfices)', // ✨ NOUVEAU
         'Calcul des Marges en temps réel', // ✨ NOUVEAU
         'Support prioritaire'
       ],
