@@ -29,7 +29,8 @@ import {
   Users,
   Package, 
   CreditCard,
-  Clock
+  Clock,
+  ArrowRight
 } from 'lucide-react';
 
 interface RevenueProps {
@@ -39,7 +40,7 @@ interface RevenueProps {
 }
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1'];
-type TimeRange = 'day' | 'month' | 'year' | 'all';
+type TimeRange = 'day' | 'month' | 'year' | 'all' | 'custom'; // 👇 Ajout de 'custom'
 
 // --- 1. FONCTIONS UTILITAIRES ---
 const calculateGrowth = (current: number, previous: number) => {
@@ -64,6 +65,12 @@ const GrowthBadge = ({ current, previous, show }: { current: number, previous: n
 const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>('year');
   const [viewMode, setViewMode] = useState<'flow' | 'cumulative'>('flow');
+  
+  // 👇 État pour la période personnalisée
+  const [customRange, setCustomRange] = useState({
+      start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0], // Début du mois par défaut
+      end: new Date().toISOString().split('T')[0] // Aujourd'hui
+  });
 
   // --- LOGIQUE DE DATES INTELLIGENTE ---
   const getDateRange = (range: TimeRange, offset: number = 0) => {
@@ -72,7 +79,6 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
       const end = new Date();
 
       if (range === 'day') {
-          // Pour "Auj", on compare avec "Hier"
           start.setDate(now.getDate() - offset);
           end.setDate(now.getDate() - offset);
           start.setHours(0,0,0,0);
@@ -83,30 +89,42 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
       } else if (range === 'year') {
           start.setFullYear(now.getFullYear() - offset, 0, 1);
           end.setFullYear(now.getFullYear() - offset, 11, 31);
+      } else if (range === 'custom') {
+          // Logique pour Custom
+          const s = new Date(customRange.start);
+          const e = new Date(customRange.end);
+          e.setHours(23, 59, 59, 999);
+
+          if (offset > 0) {
+              // Comparaison : On recule d'autant de jours que la durée sélectionnée
+              const duration = e.getTime() - s.getTime(); // Durée en ms
+              const prevEnd = new Date(s.getTime() - 86400000); // 1 jour avant le début
+              const prevStart = new Date(prevEnd.getTime() - duration);
+              return { start: prevStart, end: prevEnd };
+          }
+          return { start: s, end: e };
       } else {
-          // Pour "Toujours", pas de décalage, on prend tout
+          // All Time
           start.setFullYear(2000, 0, 1);
           end.setFullYear(2100, 11, 31);
       }
       return { start, end };
   };
 
-  // --- CALCUL DES KPIS (Chiffres clés) ---
+  // --- CALCUL DES KPIS ---
   const stats = useMemo(() => {
     const getStatsForRange = (range: TimeRange, offset: number) => {
         const { start, end } = getDateRange(range, offset);
-        
-        // Si "Toujours", on ignore le range pour le calcul total global
         const isAllTime = range === 'all';
 
         const rangeInvoices = invoices.filter(i => {
-            if (isAllTime && offset === 0) return i.status === 'paid'; // Tout l'historique
+            if (isAllTime && offset === 0) return i.status === 'paid';
             const d = new Date(i.date);
             return d >= start && d <= end && i.status === 'paid';
         });
 
         const rangeExpenses = expenses.filter(e => {
-            if (isAllTime && offset === 0) return true; // Tout l'historique
+            if (isAllTime && offset === 0) return true;
             const d = new Date(e.date);
             return d >= start && d <= end;
         });
@@ -126,14 +144,14 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
         current: getStatsForRange(timeRange, 0),
         previous: getStatsForRange(timeRange, 1) 
     };
-  }, [timeRange, invoices, expenses]);
+  }, [timeRange, invoices, expenses, customRange]);
 
-  // --- DONNÉES DU GRAPHIQUE (La partie cruciale) ---
+  // --- DONNÉES DU GRAPHIQUE ---
   const chartData = useMemo(() => {
     let data = [];
     const now = new Date();
 
-    // Fonction Helper locale
+    // Helper
     function calculatePeriodData(name: string, start: Date, end: Date) {
         let revenue = 0;
         let expense = 0;
@@ -161,42 +179,59 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
         for (let i = 1; i <= daysInMonth; i++) {
             const start = new Date(now.getFullYear(), now.getMonth(), i);
             const end = new Date(now.getFullYear(), now.getMonth(), i, 23, 59, 59);
-            // On n'affiche que les jours pairs pour alléger si besoin, ou on formatte court
             data.push(calculatePeriodData(String(i), start, end));
         }
     }
-    // 👇 MODIFIÉ : LOGIQUE INTELLIGENTE POUR "TOUJOURS"
     else if (timeRange === 'all') {
         const currentYear = now.getFullYear();
-        // On trouve la première année d'activité
         const allDates = [...invoices.map(i => i.date), ...expenses.map(e => e.date)].map(d => new Date(d).getFullYear());
         const minYear = allDates.length > 0 ? Math.min(...allDates) : currentYear;
-        
-        // On génère de la première année trouvée jusqu'à aujourd'hui
         for (let i = minYear; i <= currentYear; i++) {
             const start = new Date(i, 0, 1);
             const end = new Date(i, 11, 31);
             data.push(calculatePeriodData(String(i), start, end));
         }
     }
-    // 👇 MODIFIÉ : LOGIQUE POUR "AUJOURD'HUI" (7 Derniers jours)
     else if (timeRange === 'day') {
         for (let i = 6; i >= 0; i--) {
             const d = new Date();
             d.setDate(now.getDate() - i);
             const start = new Date(d.setHours(0,0,0,0));
             const end = new Date(d.setHours(23,59,59,999));
-            
-            // Format : "Lun 12"
-            const dayName = d.toLocaleDateString('fr-FR', { weekday: 'short' });
-            const dayNum = d.getDate();
-            const label = i === 0 ? 'Auj.' : `${dayName} ${dayNum}`;
-            
+            const label = i === 0 ? 'Auj.' : d.toLocaleDateString('fr-FR', { weekday: 'short' });
             data.push(calculatePeriodData(label, start, end));
         }
     }
+    // 👇 LOGIQUE GRAPHIQUE POUR CUSTOM
+    else if (timeRange === 'custom') {
+        const start = new Date(customRange.start);
+        const end = new Date(customRange.end);
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    // Mode cumulé
+        if (diffDays <= 31) {
+            // Affichage par jour si période courte
+            for (let i = 0; i <= diffDays; i++) {
+                const d = new Date(start);
+                d.setDate(d.getDate() + i);
+                const s = new Date(d.setHours(0,0,0,0));
+                const e = new Date(d.setHours(23,59,59,999));
+                data.push(calculatePeriodData(`${d.getDate()}/${d.getMonth()+1}`, s, e));
+            }
+        } else {
+            // Affichage par mois si période longue
+            let d = new Date(start);
+            d.setDate(1); // Début du mois
+            while (d <= end) {
+                const s = new Date(d.getFullYear(), d.getMonth(), 1);
+                const e = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                const label = d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+                data.push(calculatePeriodData(label, s, e));
+                d.setMonth(d.getMonth() + 1);
+            }
+        }
+    }
+
     if (viewMode === 'cumulative') {
         let accRevenue = 0;
         let accProfit = 0;
@@ -208,7 +243,7 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
     }
 
     return data;
-  }, [invoices, expenses, timeRange, viewMode]);
+  }, [invoices, expenses, timeRange, viewMode, customRange]);
 
   // --- KPIS DÉTAILLÉS ---
   const detailedStats = useMemo(() => {
@@ -221,14 +256,12 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
           return d >= start && d <= end;
       };
 
-      // Top Clients
       const clientMap = new Map<string, number>();
       invoices.filter(i => filterDate(i.date) && i.status === 'paid').forEach(inv => {
           clientMap.set(inv.clientName, (clientMap.get(inv.clientName) || 0) + inv.total);
       });
       const topClients = Array.from(clientMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
 
-      // Top Services
       const servicesMap = new Map<string, number>();
       invoices.filter(i => filterDate(i.date) && i.status === 'paid').forEach(inv => {
           inv.items.forEach(item => {
@@ -237,7 +270,6 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
       });
       const topServices = Array.from(servicesMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
 
-      // Paiements
       const paymentMap = new Map<string, number>();
       invoices.filter(i => filterDate(i.date) && i.status === 'paid').forEach(inv => {
           const method = inv.paymentMethod || 'Autre';
@@ -246,7 +278,7 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
       const paymentMethods = Array.from(paymentMap.entries()).map(([name, value]) => ({ name, value }));
 
       return { topClients, topServices, paymentMethods };
-  }, [invoices, expenses, timeRange]);
+  }, [invoices, expenses, timeRange, customRange]);
 
   const pendingAmount = useMemo(() => {
       const { start, end } = getDateRange(timeRange);
@@ -257,7 +289,7 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
             return d >= start && d <= end && i.status === 'pending';
         })
         .reduce((sum, i) => sum + i.total, 0);
-  }, [invoices, timeRange]);
+  }, [invoices, timeRange, customRange]);
 
   const averageBasket = stats.current.count > 0 ? stats.current.revenue / stats.current.count : 0;
 
@@ -271,33 +303,63 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
           <p className="text-slate-500 mt-1">
               {timeRange === 'day' ? "Aperçu des 7 derniers jours" : 
                timeRange === 'month' ? `Détail du mois de ${new Date().toLocaleDateString('fr-FR', {month:'long'})}` :
-               timeRange === 'year' ? `Année ${new Date().getFullYear()}` : "Historique complet"}
+               timeRange === 'year' ? `Année ${new Date().getFullYear()}` : 
+               timeRange === 'custom' ? "Période personnalisée" : "Historique complet"}
           </p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 items-end sm:items-center">
+            {/* Toggle Vue */}
             <div className="flex bg-slate-100 p-1 rounded-lg">
                 <button onClick={() => setViewMode('flow')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'flow' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Flux</button>
                 <button onClick={() => setViewMode('cumulative')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'cumulative' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Cumulé</button>
             </div>
 
-            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
-                {(['day', 'month', 'year', 'all'] as const).map((t) => (
+            <div className="flex flex-wrap items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-slate-200">
+                {(['day', 'month', 'year', 'all', 'custom'] as const).map((t) => (
                     <button
                         key={t}
                         onClick={() => setTimeRange(t)}
-                        className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-all ${
+                        className={`px-3 py-1.5 text-sm font-bold rounded-lg transition-all ${
                             timeRange === t 
                             ? 'bg-slate-900 text-white shadow-md' 
                             : 'text-slate-500 hover:bg-slate-50'
                         }`}
                     >
-                        {t === 'day' ? 'Auj.' : t === 'month' ? 'Mois' : t === 'year' ? 'Année' : 'Max'}
+                        {t === 'day' ? 'Auj.' : t === 'month' ? 'Mois' : t === 'year' ? 'Année' : t === 'all' ? 'Max' : 'Perso'}
                     </button>
                 ))}
             </div>
         </div>
       </div>
+
+      {/* 👇 SÉLECTEUR DE DATE CUSTOM (Apparaît seulement si 'Perso' est actif) */}
+      {timeRange === 'custom' && (
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-wrap items-center gap-4 animate-in slide-in-from-top-2">
+              <span className="text-sm font-bold text-slate-500 uppercase flex items-center gap-2">
+                  <Calendar className="w-4 h-4" /> Définir la période :
+              </span>
+              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                  <span className="text-xs text-slate-400">Du</span>
+                  <input 
+                      type="date" 
+                      value={customRange.start} 
+                      onChange={(e) => setCustomRange({...customRange, start: e.target.value})}
+                      className="text-sm font-bold text-slate-700 outline-none"
+                  />
+              </div>
+              <ArrowRight className="w-4 h-4 text-slate-400" />
+              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                  <span className="text-xs text-slate-400">Au</span>
+                  <input 
+                      type="date" 
+                      value={customRange.end} 
+                      onChange={(e) => setCustomRange({...customRange, end: e.target.value})}
+                      className="text-sm font-bold text-slate-700 outline-none"
+                  />
+              </div>
+          </div>
+      )}
 
       {/* 1. KPIS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -354,7 +416,7 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
           <div className="flex items-center justify-between mb-6">
               <h3 className="font-bold text-slate-900 flex items-center gap-2">
                   {viewMode === 'flow' ? <TrendingUp className="w-5 h-5 text-brand-600" /> : <Target className="w-5 h-5 text-brand-600" />}
-                  Evolution {timeRange === 'day' ? '(7 derniers jours)' : timeRange === 'month' ? '(Ce mois)' : timeRange === 'year' ? '(Cette année)' : '(Global)'}
+                  Evolution {timeRange === 'custom' ? '(Période perso)' : timeRange === 'day' ? '(7 derniers jours)' : timeRange === 'month' ? '(Ce mois)' : timeRange === 'year' ? '(Cette année)' : '(Global)'}
               </h3>
               <div className="hidden sm:flex items-center gap-4 text-xs font-medium">
                   <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Revenus</div>
@@ -399,13 +461,13 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
           </div>
       </div>
 
-      {/* 3. SECTION DÉTAILLÉE */}
+      {/* 3. NOUVELLE SECTION DÉTAILLÉE */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* COL 1: TOP CLIENTS */}
           <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-200">
               <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-purple-600" /> Baleines (Top Clients)
+                  <Users className="w-5 h-5 text-purple-600" /> Meilleurs Clients
               </h4>
               <div className="space-y-4">
                   {detailedStats.topClients.length > 0 ? detailedStats.topClients.map((client, i) => (
