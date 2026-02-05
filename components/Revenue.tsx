@@ -2,11 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { Invoice, Expense, User, formatPrice } from '../types';
 import { 
   BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  ComposedChart, PieChart, Pie, Cell 
+  ComposedChart, AreaChart, Area 
 } from 'recharts';
 import { 
-  TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, 
-  Target, Users, CreditCard, Calendar 
+  TrendingUp, TrendingDown, Wallet, Target, Calendar, 
+  ArrowUpRight, ArrowDownRight, Activity, Percent
 } from 'lucide-react';
 
 interface RevenueProps {
@@ -15,76 +15,95 @@ interface RevenueProps {
   user: User;
 }
 
-const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
 const MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
 const Revenue: React.FC<RevenueProps> = ({ invoices, expenses, user }) => {
   const [year, setYear] = useState(new Date().getFullYear());
+  const [viewMode, setViewMode] = useState<'flow' | 'cumulative'>('flow'); // 👇 NOUVEAU : Mode de vue
 
-  // --- 1. CALCULS DES DONNÉES MENSUELLES (Graphique Principal) ---
-  const monthlyData = useMemo(() => {
-    const data = MONTHS.map(m => ({ name: m, revenue: 0, expense: 0, profit: 0 }));
-
-    // Revenus (Basés sur la date de facture, status 'paid' uniquement pour le CA réel)
-    invoices.forEach(inv => {
-        const d = new Date(inv.date);
-        if (d.getFullYear() === year && inv.status === 'paid') {
-            data[d.getMonth()].revenue += inv.total;
-        }
-    });
-
-    // Dépenses
-    expenses.forEach(exp => {
-        const d = new Date(exp.date);
-        if (d.getFullYear() === year) {
-            data[d.getMonth()].expense += exp.amount;
-        }
-    });
-
-    // Bénéfice
-    data.forEach(item => {
-        item.profit = item.revenue - item.expense;
-    });
-
-    return data;
-  }, [invoices, expenses, year]);
-
-  // --- 2. KPIS ANNUELS ---
-  const stats = useMemo(() => {
-      const totalRevenue = monthlyData.reduce((acc, curr) => acc + curr.revenue, 0);
-      const totalExpense = monthlyData.reduce((acc, curr) => acc + curr.expense, 0);
-      const netProfit = totalRevenue - totalExpense;
-      const margin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
-      
-      // Factures en attente (Cashflow potentiel)
-      const pending = invoices
-        .filter(i => new Date(i.date).getFullYear() === year && i.status === 'pending')
+  // --- HELPER : Calculer les stats pour une année donnée ---
+  const getStatsForYear = (targetYear: number) => {
+      // Revenus
+      const revenue = invoices
+        .filter(i => new Date(i.date).getFullYear() === targetYear && i.status === 'paid')
         .reduce((sum, i) => sum + i.total, 0);
+      
+      // Dépenses
+      const expense = expenses
+        .filter(e => new Date(e.date).getFullYear() === targetYear)
+        .reduce((sum, e) => sum + e.amount, 0);
+      
+      // Nombre de factures payées (pour panier moyen)
+      const count = invoices.filter(i => new Date(i.date).getFullYear() === targetYear && i.status === 'paid').length;
 
-      return { totalRevenue, totalExpense, netProfit, margin, pending };
-  }, [monthlyData, invoices, year]);
+      return { revenue, expense, profit: revenue - expense, count };
+  };
 
-  // --- 3. RÉPARTITION PAR MÉTHODE DE PAIEMENT ---
-  const paymentMethodData = useMemo(() => {
-      const map = new Map<string, number>();
-      invoices.filter(i => i.status === 'paid' && new Date(i.date).getFullYear() === year).forEach(inv => {
-          const method = inv.paymentMethod || 'Autre';
-          map.set(method, (map.get(method) || 0) + inv.total);
-      });
-      return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
-  }, [invoices, year]);
+  const currentStats = useMemo(() => getStatsForYear(year), [year, invoices, expenses]);
+  const previousStats = useMemo(() => getStatsForYear(year - 1), [year, invoices, expenses]);
 
-  // --- 4. TOP CLIENTS (Baleines) ---
-  const topClients = useMemo(() => {
-      const map = new Map<string, number>();
-      invoices.filter(i => i.status === 'paid' && new Date(i.date).getFullYear() === year).forEach(inv => {
-          map.set(inv.clientName, (map.get(inv.clientName) || 0) + inv.total);
-      });
-      return Array.from(map.entries())
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 5);
-  }, [invoices, year]);
+  // --- CALCUL CROISSANCE (%) ---
+  const calculateGrowth = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return ((current - previous) / previous) * 100;
+  };
+
+  // --- DONNÉES GRAPHIQUE ---
+  const chartData = useMemo(() => {
+    let accRevenue = 0;
+    let accProfit = 0;
+
+    return MONTHS.map((m, index) => {
+        // Flux mensuel
+        let monthlyRevenue = 0;
+        let monthlyExpense = 0;
+
+        invoices.forEach(inv => {
+            const d = new Date(inv.date);
+            if (d.getFullYear() === year && d.getMonth() === index && inv.status === 'paid') {
+                monthlyRevenue += inv.total;
+            }
+        });
+
+        expenses.forEach(exp => {
+            const d = new Date(exp.date);
+            if (d.getFullYear() === year && d.getMonth() === index) {
+                monthlyExpense += exp.amount;
+            }
+        });
+
+        const monthlyProfit = monthlyRevenue - monthlyExpense;
+
+        // Cumul
+        accRevenue += monthlyRevenue;
+        accProfit += monthlyProfit;
+
+        return {
+            name: m,
+            revenue: viewMode === 'flow' ? monthlyRevenue : accRevenue,
+            expense: viewMode === 'flow' ? monthlyExpense : 0, // On masque les dépenses en cumulé pour lisibilité
+            profit: viewMode === 'flow' ? monthlyProfit : accProfit,
+        };
+    });
+  }, [invoices, expenses, year, viewMode]);
+
+  // KPIs supplémentaires
+  const averageBasket = currentStats.count > 0 ? currentStats.revenue / currentStats.count : 0;
+  const pendingAmount = invoices
+    .filter(i => new Date(i.date).getFullYear() === year && i.status === 'pending')
+    .reduce((sum, i) => sum + i.total, 0);
+
+  // Composant Badge Croissance
+  const GrowthBadge = ({ current, previous }: { current: number, previous: number }) => {
+      const growth = calculateGrowth(current, previous);
+      const isPositive = growth >= 0;
+      return (
+          <div className={`flex items-center text-xs font-bold px-2 py-0.5 rounded-full ${isPositive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+              {isPositive ? <ArrowUpRight className="w-3 h-3 mr-1" /> : <ArrowDownRight className="w-3 h-3 mr-1" />}
+              {Math.abs(growth).toFixed(0)}%
+          </div>
+      );
+  };
 
   return (
     <div className="space-y-8 pb-20">
@@ -93,163 +112,174 @@ const Revenue: React.FC<RevenueProps> = ({ invoices, expenses, user }) => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-900 font-display">Analyse Financière</h2>
-          <p className="text-slate-500 mt-1">Vue détaillée de votre rentabilité pour {year}.</p>
+          <p className="text-slate-500 mt-1">Comparaison des performances {year} vs {year - 1}.</p>
         </div>
-        <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
-            <button onClick={() => setYear(year - 1)} className="px-3 py-1 hover:bg-slate-50 rounded-lg text-slate-500">←</button>
-            <span className="px-4 py-1.5 text-sm font-bold text-slate-900 bg-slate-50 rounded-lg flex items-center gap-2">
-                <Calendar className="w-4 h-4" /> {year}
-            </span>
-            <button onClick={() => setYear(year + 1)} className="px-3 py-1 hover:bg-slate-50 rounded-lg text-slate-500">→</button>
+        <div className="flex items-center gap-4">
+            {/* Toggle Vue */}
+            <div className="flex bg-slate-100 p-1 rounded-lg">
+                <button onClick={() => setViewMode('flow')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'flow' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Flux</button>
+                <button onClick={() => setViewMode('cumulative')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'cumulative' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Cumulé</button>
+            </div>
+
+            {/* Sélecteur Année */}
+            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
+                <button onClick={() => setYear(year - 1)} className="px-3 py-1 hover:bg-slate-50 rounded-lg text-slate-500">←</button>
+                <span className="px-4 py-1.5 text-sm font-bold text-slate-900 bg-slate-50 rounded-lg flex items-center gap-2">
+                    <Calendar className="w-4 h-4" /> {year}
+                </span>
+                <button onClick={() => setYear(year + 1)} className="px-3 py-1 hover:bg-slate-50 rounded-lg text-slate-500">→</button>
+            </div>
         </div>
       </div>
 
-      {/* 1. CARTES KPI PRINCIPALES */}
+      {/* 1. CARTES KPI PRINCIPALES AVEC COMPARAISON */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 group hover:shadow-float transition-all">
-              <div className="flex justify-between items-start mb-4">
+          
+          {/* CA */}
+          <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 hover:shadow-float transition-all">
+              <div className="flex justify-between items-start mb-2">
                   <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><TrendingUp className="w-6 h-6" /></div>
-                  <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg">Encaissé</span>
+                  <GrowthBadge current={currentStats.revenue} previous={previousStats.revenue} />
               </div>
               <p className="text-slate-500 text-sm font-medium">Chiffre d'Affaires</p>
-              <h3 className="text-2xl font-bold text-slate-900">{formatPrice(stats.totalRevenue, user.currency)}</h3>
+              <h3 className="text-2xl font-bold text-slate-900 mt-1">{formatPrice(currentStats.revenue, user.currency)}</h3>
+              <p className="text-xs text-slate-400 mt-2">vs {formatPrice(previousStats.revenue, user.currency)} en {year-1}</p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 group hover:shadow-float transition-all">
-              <div className="flex justify-between items-start mb-4">
+          {/* Dépenses */}
+          <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 hover:shadow-float transition-all">
+              <div className="flex justify-between items-start mb-2">
                   <div className="p-3 bg-red-50 text-red-600 rounded-xl"><TrendingDown className="w-6 h-6" /></div>
-                  <span className="text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded-lg">Sorties</span>
+                  {/* Pour les dépenses, on inverse la logique : moins c'est mieux, mais gardons la croissance simple pour l'instant */}
+                  <div className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                     {currentStats.expense > previousStats.expense ? '↗ En hausse' : '↘ En baisse'}
+                  </div>
               </div>
               <p className="text-slate-500 text-sm font-medium">Total Dépenses</p>
-              <h3 className="text-2xl font-bold text-slate-900">{formatPrice(stats.totalExpense, user.currency)}</h3>
+              <h3 className="text-2xl font-bold text-slate-900 mt-1">{formatPrice(currentStats.expense, user.currency)}</h3>
+              <p className="text-xs text-slate-400 mt-2">vs {formatPrice(previousStats.expense, user.currency)} en {year-1}</p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 group hover:shadow-float transition-all">
-              <div className="flex justify-between items-start mb-4">
-                  <div className={`p-3 rounded-xl ${stats.netProfit >= 0 ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+          {/* Bénéfice Net */}
+          <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 hover:shadow-float transition-all">
+              <div className="flex justify-between items-start mb-2">
+                  <div className={`p-3 rounded-xl ${currentStats.profit >= 0 ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
                       <Wallet className="w-6 h-6" />
                   </div>
-                  <div className="flex items-center gap-1 text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-lg">
-                      {stats.margin.toFixed(1)}% Marge
-                  </div>
+                  <GrowthBadge current={currentStats.profit} previous={previousStats.profit} />
               </div>
               <p className="text-slate-500 text-sm font-medium">Bénéfice Net</p>
-              <h3 className={`text-2xl font-bold ${stats.netProfit >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
-                  {stats.netProfit > 0 ? '+' : ''}{formatPrice(stats.netProfit, user.currency)}
+              <h3 className={`text-2xl font-bold mt-1 ${currentStats.profit >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                  {currentStats.profit > 0 ? '+' : ''}{formatPrice(currentStats.profit, user.currency)}
               </h3>
+              <p className="text-xs text-slate-400 mt-2">Marge: {currentStats.revenue > 0 ? ((currentStats.profit / currentStats.revenue)*100).toFixed(1) : 0}%</p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 group hover:shadow-float transition-all relative overflow-hidden">
-              <div className="absolute right-0 top-0 p-4 opacity-5"><Target className="w-24 h-24" /></div>
-              <div className="flex justify-between items-start mb-4">
-                  <div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><Target className="w-6 h-6" /></div>
-                  <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-lg">Potentiel</span>
+          {/* Panier Moyen (NOUVEAU) */}
+          <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 hover:shadow-float transition-all">
+              <div className="flex justify-between items-start mb-2">
+                  <div className="p-3 bg-purple-50 text-purple-600 rounded-xl"><Activity className="w-6 h-6" /></div>
+                  <div className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-0.5 rounded-full flex items-center">
+                      <Percent className="w-3 h-3 mr-1" /> Moy.
+                  </div>
               </div>
-              <p className="text-slate-500 text-sm font-medium">En attente de paiement</p>
-              <h3 className="text-2xl font-bold text-slate-900">{formatPrice(stats.pending, user.currency)}</h3>
+              <p className="text-slate-500 text-sm font-medium">Panier Moyen</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-1">{formatPrice(averageBasket, user.currency)}</h3>
+              <p className="text-xs text-slate-400 mt-2">Sur {currentStats.count} factures payées</p>
           </div>
       </div>
 
-      {/* 2. GRAPHIQUE PRINCIPAL (Revenus vs Dépenses vs Profit) */}
+      {/* 2. GRAPHIQUE INTELLIGENT (Flux ou Cumulé) */}
       <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-200">
           <div className="flex items-center justify-between mb-6">
               <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-brand-600" /> Flux de Trésorerie
+                  {viewMode === 'flow' ? <TrendingUp className="w-5 h-5 text-brand-600" /> : <Target className="w-5 h-5 text-brand-600" />}
+                  {viewMode === 'flow' ? 'Flux de Trésorerie Mensuel' : 'Croissance Cumulée Annuelle'}
               </h3>
               <div className="flex items-center gap-4 text-xs font-medium">
                   <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Revenus</div>
-                  <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-red-500"></div> Dépenses</div>
+                  {viewMode === 'flow' && <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-red-500"></div> Dépenses</div>}
                   <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Net</div>
               </div>
           </div>
-          <div className="h-[350px] w-full">
+          
+          <div className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={monthlyData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                      <CartesianGrid stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} />
-                      <Tooltip 
-                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                          formatter={(value: number) => formatPrice(value, user.currency)}
-                      />
-                      <Bar dataKey="revenue" barSize={20} fill="#10b981" radius={[4, 4, 0, 0]} stackId="a" />
-                      <Bar dataKey="expense" barSize={20} fill="#ef4444" radius={[4, 4, 0, 0]} stackId="b" />
-                      <Line type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={3} dot={{r: 4}} />
-                  </ComposedChart>
+                  {viewMode === 'flow' ? (
+                      // VUE FLUX (Barres + Ligne)
+                      <ComposedChart data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                          <CartesianGrid stroke="#f1f5f9" vertical={false} />
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
+                          <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} />
+                          <Tooltip 
+                              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                              formatter={(value: number) => formatPrice(value, user.currency)}
+                          />
+                          <Bar dataKey="revenue" barSize={20} fill="#10b981" radius={[4, 4, 0, 0]} stackId="a" />
+                          <Bar dataKey="expense" barSize={20} fill="#ef4444" radius={[4, 4, 0, 0]} stackId="b" />
+                          <Line type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={3} dot={{r: 4}} />
+                      </ComposedChart>
+                  ) : (
+                      // VUE CUMULÉE (Aires)
+                      <AreaChart data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                          <defs>
+                              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                              </linearGradient>
+                              <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                              </linearGradient>
+                          </defs>
+                          <CartesianGrid stroke="#f1f5f9" vertical={false} />
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
+                          <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} />
+                          <Tooltip 
+                              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                              formatter={(value: number) => formatPrice(value, user.currency)}
+                          />
+                          <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                          <Area type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
+                      </AreaChart>
+                  )}
               </ResponsiveContainer>
           </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* 3. TOP CLIENTS */}
-          <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-200">
-              <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-purple-600" /> Meilleurs Clients
-              </h3>
-              <div className="space-y-4">
-                  {topClients.length > 0 ? topClients.map((client, i) => (
-                      <div key={i} className="flex items-center justify-between group">
-                          <div className="flex items-center gap-3">
-                              <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${i===0 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-500'}`}>{i + 1}</span>
-                              <span className="font-medium text-slate-700 truncate max-w-[120px]">{client.name}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900">{formatPrice(client.value, user.currency)}</span>
-                              <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                  <div className="h-full bg-purple-500" style={{ width: `${(client.value / topClients[0].value) * 100}%` }}></div>
-                              </div>
-                          </div>
+      {/* 3. SECTION TRÉSORERIE FUTURE */}
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-8 text-white relative overflow-hidden shadow-xl">
+          <div className="absolute right-0 top-0 p-8 opacity-10"><Target className="w-48 h-48" /></div>
+          <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+              <div>
+                  <h3 className="text-2xl font-bold mb-2 font-display">Trésorerie Potentielle</h3>
+                  <p className="text-slate-400 mb-6">Montant total des factures émises en {year} mais non encore réglées.</p>
+                  <div className="flex items-center gap-3">
+                      <div className="p-3 bg-amber-500/20 rounded-xl text-amber-400">
+                          <Clock className="w-8 h-8" />
                       </div>
-                  )) : (
-                      <p className="text-center text-slate-400 text-sm py-10">Aucune donnée client</p>
-                  )}
-              </div>
-          </div>
-
-          {/* 4. MODES DE PAIEMENT */}
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-card border border-slate-200">
-              <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-blue-600" /> Canaux d'encaissement
-              </h3>
-              <div className="flex flex-col md:flex-row items-center gap-8">
-                  <div className="w-full md:w-1/2 h-[250px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                              <Pie
-                                  data={paymentMethodData}
-                                  cx="50%"
-                                  cy="50%"
-                                  innerRadius={60}
-                                  outerRadius={80}
-                                  paddingAngle={5}
-                                  dataKey="value"
-                              >
-                                  {paymentMethodData.map((entry, index) => (
-                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                  ))}
-                              </Pie>
-                              <Tooltip formatter={(value: number) => formatPrice(value, user.currency)} />
-                              <Legend />
-                          </PieChart>
-                      </ResponsiveContainer>
-                  </div>
-                  <div className="w-full md:w-1/2 space-y-3">
-                      {paymentMethodData.map((item, index) => (
-                          <div key={index} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                                  <span className="font-medium text-slate-700">{item.name}</span>
-                              </div>
-                              <span className="font-bold text-slate-900">{formatPrice(item.value, user.currency)}</span>
-                          </div>
-                      ))}
-                      {paymentMethodData.length === 0 && <p className="text-center text-slate-400 text-sm">Aucun paiement enregistré</p>}
+                      <div>
+                          <p className="text-sm font-medium text-amber-400 uppercase tracking-wider">En attente</p>
+                          <h2 className="text-4xl font-bold">{formatPrice(pendingAmount, user.currency)}</h2>
+                      </div>
                   </div>
               </div>
+              <div className="bg-white/10 rounded-xl p-6 backdrop-blur-sm border border-white/10">
+                  <h4 className="font-bold mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-purple-400" /> Analyse rapide</h4>
+                  <ul className="space-y-3 text-sm text-slate-300">
+                      <li className="flex items-start gap-2">
+                          <span className="text-emerald-400 font-bold">•</span>
+                          Si tout est payé, votre CA annuel sera de <strong className="text-white">{formatPrice(currentStats.revenue + pendingAmount, user.currency)}</strong>.
+                      </li>
+                      <li className="flex items-start gap-2">
+                          <span className="text-blue-400 font-bold">•</span>
+                          Cela représenterait une marge nette globale de <strong className="text-white">{((currentStats.profit + pendingAmount) / (currentStats.revenue + pendingAmount) * 100).toFixed(1)}%</strong>.
+                      </li>
+                  </ul>
+              </div>
           </div>
-
       </div>
+
     </div>
   );
 };
