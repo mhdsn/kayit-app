@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Expense, User, formatPrice } from '../types';
-import { Plus, Trash2, Calendar, Tag, TrendingDown, Download, Filter, PieChart as PieChartIcon, ArrowUpRight, DollarSign, Clock } from 'lucide-react';
+import { Plus, Trash2, Calendar, Tag, TrendingDown, Download, Filter, PieChart as PieChartIcon, ArrowUpRight, DollarSign, Clock, Calculator, X } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
 interface ExpensesProps {
@@ -10,9 +10,8 @@ interface ExpensesProps {
   onDelete: (id: string) => void;
 }
 
-// Suggestions de base (l'utilisateur peut en créer d'autres)
-const SUGGESTED_CATEGORIES = ['Loyer', 'Salaire', 'Marketing', 'Matériel', 'Logiciel', 'Transport', 'Services', 'Autre'];
-const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#94a3b8'];
+const SUGGESTED_CATEGORIES = ['Loyer', 'Salaire', 'Marketing', 'Matériel', 'Logiciel', 'Transport', 'Services', 'Stock', 'Autre'];
+const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#94a3b8', '#64748b'];
 
 type TimeFilter = 'day' | 'month' | 'year' | 'all';
 
@@ -21,38 +20,42 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('month');
 
+  // 👇 MODIFICATION : On sépare quantité et prix unitaire dans le state local
   const [formData, setFormData] = useState({
     description: '',
-    amount: '',
-    category: '', // Vide par défaut pour laisser le choix
+    quantity: 1,      // Nouveau champ
+    unitPrice: '',    // Remplace 'amount' pour la saisie
+    category: '',
     date: new Date().toISOString().split('T')[0]
   });
 
-  // 👇 NOUVEAU : Calcul dynamique des catégories pour le filtre
-  // Combine les suggestions de base ET les catégories créées par l'utilisateur
   const allCategories = useMemo(() => {
       const cats = new Set(SUGGESTED_CATEGORIES);
       expenses.forEach(e => cats.add(e.category));
       return Array.from(cats).sort();
   }, [expenses]);
 
+  // 👇 CALCUL DYNAMIQUE DU TOTAL
+  const calculatedTotal = (parseFloat(formData.unitPrice || '0') * formData.quantity) || 0;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.description || !formData.amount) return;
+    if (!formData.description || !formData.unitPrice) return;
 
     onAdd({
-      description: formData.description,
-      amount: parseFloat(formData.amount),
-      // Si la catégorie est vide, on met 'Autre' par défaut
+      description: formData.quantity > 1 
+        ? `${formData.description} (x${formData.quantity})` // On ajoute l'info qté dans la description pour l'historique
+        : formData.description,
+      amount: calculatedTotal, // On enregistre le total calculé
       category: formData.category.trim() || 'Autre',
       date: formData.date
     });
 
-    setFormData({ description: '', amount: '', category: '', date: new Date().toISOString().split('T')[0] });
+    // Reset du formulaire
+    setFormData({ description: '', quantity: 1, unitPrice: '', category: '', date: new Date().toISOString().split('T')[0] });
     setShowForm(false);
   };
 
-  // --- LOGIQUE DE FILTRAGE COMBINÉE ---
   const filteredExpenses = useMemo(() => {
       let data = expenses;
 
@@ -194,24 +197,18 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl shadow-xl border border-slate-200 animate-in slide-in-from-top-4 ring-1 ring-slate-900/5">
           <div className="flex justify-between items-center mb-6">
              <h3 className="font-bold text-slate-900 text-lg">Nouvelle dépense</h3>
-             <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600"><TrendingDown className="w-5 h-5 rotate-180" /></button>
+             <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            {/* Description */}
             <div className="lg:col-span-2">
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Description</label>
-              <input type="text" required autoFocus placeholder="" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all" />
+              <input type="text" required autoFocus placeholder="Ex: Achat fournitures" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all" />
             </div>
             
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Montant</label>
-              <div className="relative">
-                  <input type="number" required min="0" placeholder="0" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all" />
-                  <span className="absolute left-4 top-3.5 text-sm font-bold text-slate-400 pointer-events-none">{user.currency}</span>
-              </div>
-            </div>
-
-            {/* 👇 MODIFIÉ : INPUT AVEC DATALIST (Saisie libre + Suggestions) */}
+            {/* Catégorie */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Catégorie</label>
               <div className="relative">
@@ -219,12 +216,11 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
                     type="text" 
                     list="category-suggestions" 
                     required
-                    placeholder="Ex: Marketing"
+                    placeholder="Ex: Stock"
                     value={formData.category} 
                     onChange={e => setFormData({...formData, category: e.target.value})} 
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all" 
                 />
-                {/* Liste des suggestions */}
                 <datalist id="category-suggestions">
                     {SUGGESTED_CATEGORIES.map(c => <option key={c} value={c} />)}
                 </datalist>
@@ -232,6 +228,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
               </div>
             </div>
 
+            {/* Date */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Date</label>
               <div className="relative">
@@ -239,10 +236,52 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
                 <Calendar className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
             </div>
+
+            {/* 👇 NOUVEAUX CHAMPS : Quantité & Prix Unitaire */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Quantité</label>
+              <input 
+                type="number" 
+                min="1" 
+                required 
+                value={formData.quantity} 
+                onChange={e => setFormData({...formData, quantity: parseFloat(e.target.value) || 1})} 
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all text-center" 
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Prix Unitaire</label>
+              <div className="relative">
+                  <input 
+                    type="number" 
+                    required 
+                    min="0" 
+                    placeholder="0" 
+                    value={formData.unitPrice} 
+                    onChange={e => setFormData({...formData, unitPrice: e.target.value})} 
+                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all" 
+                  />
+                  <span className="absolute left-4 top-3.5 text-sm font-bold text-slate-400 pointer-events-none">{user.currency}</span>
+              </div>
+            </div>
+
+            {/* 👇 CALCULATEUR DE TOTAL (VISUEL UNIQUEMENT) */}
+            <div className="lg:col-span-2 flex items-end">
+                <div className="w-full bg-slate-900 text-white rounded-xl p-3 flex items-center justify-between shadow-lg">
+                    <div className="flex items-center gap-2 text-slate-400 text-sm">
+                        <Calculator className="w-4 h-4" />
+                        <span>Total calculé :</span>
+                    </div>
+                    <span className="text-xl font-bold tracking-tight">
+                        {formatPrice(calculatedTotal, user.currency)}
+                    </span>
+                </div>
+            </div>
             
-            <div className="flex items-end">
-                <button type="submit" className="w-full py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-500/30 flex items-center justify-center gap-2">
-                    <Plus className="w-5 h-5" /> Enregistrer
+            <div className="lg:col-span-4 flex justify-end pt-2">
+                <button type="submit" className="px-8 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-500/30 flex items-center justify-center gap-2">
+                    <Plus className="w-5 h-5" /> Enregistrer la dépense
                 </button>
             </div>
           </div>
@@ -260,7 +299,6 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
                 
                 <div className="flex items-center gap-2">
                     <Filter className="w-4 h-4 text-slate-400" />
-                    {/* 👇 MODIFIÉ : Filtre dynamique avec toutes les catégories existantes */}
                     <select 
                         value={filterCategory} 
                         onChange={(e) => setFilterCategory(e.target.value)}
@@ -290,7 +328,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
                         <th className="px-6 py-4">Date</th>
                         <th className="px-6 py-4">Description</th>
                         <th className="px-6 py-4">Catégorie</th>
-                        <th className="px-6 py-4 text-right">Montant</th>
+                        <th className="px-6 py-4 text-right">Montant Total</th>
                         <th className="px-6 py-4 text-right"></th>
                         </tr>
                     </thead>
