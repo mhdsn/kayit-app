@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Invoice, User, formatPrice } from '../types';
 import { generateInvoicePDF } from '../services/pdfService';
-// 👇 AJOUT DE 'Wallet' DANS LES IMPORTS
-import { Download, Trash2, Search, Filter, FileText, Pencil, Check, AlertTriangle, Lock, Loader2, Wallet } from 'lucide-react';
+// 👇 AJOUT DES ICÔNES : MessageCircle (WhatsApp) et Mail
+import { Download, Trash2, Search, Filter, FileText, Pencil, Check, AlertTriangle, Lock, Loader2, Wallet, MessageCircle, Mail } from 'lucide-react';
 
 interface InvoiceListProps {
   invoices: Invoice[];
@@ -35,7 +35,6 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
 
   const handleDownload = async (invoice: Invoice) => {
     setDownloadingId(invoice.id); 
-    
     setTimeout(async () => {
         try {
             await generateInvoicePDF(invoice, user);
@@ -47,6 +46,36 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
     }, 50);
   };
 
+  // 👇 FONCTION INTELLIGENTE WHATSAPP
+  const handleWhatsAppShare = async (invoice: Invoice) => {
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry/i.test(navigator.userAgent);
+
+      // 1. Sur Mobile : On essaie le partage natif (Fichier inclus)
+      if (isMobile && navigator.share) {
+          await handleDownload(invoice); // Le partage est géré dans generateInvoicePDF
+          return;
+      }
+
+      // 2. Sur PC : On télécharge le PDF + Ouvre WhatsApp Web avec message
+      handleDownload(invoice); // On lance le téléchargement pour que l'utilisateur l'ait sous la main
+
+      const message = `Bonjour ${invoice.clientName},\n\nVoici votre facture ${invoice.number} d'un montant de ${formatPrice(invoice.total, invoice.currency)}.\n\nMerci de votre confiance !\n${user.businessName || user.name}`;
+      const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+      window.open(url, '_blank');
+  };
+
+  // 👇 FONCTION INTELLIGENTE EMAIL
+  const handleEmailShare = (invoice: Invoice) => {
+      // Sur email, impossible de joindre une pièce jointe via mailto, 
+      // donc on télécharge le fichier et on ouvre le client mail.
+      handleDownload(invoice);
+
+      const subject = `Facture ${invoice.number} - ${user.businessName || user.name}`;
+      const body = `Bonjour ${invoice.clientName},\n\nVeuillez trouver ci-joint votre facture ${invoice.number} pour un montant de ${formatPrice(invoice.total, invoice.currency)}.\n\nCordialement,\n${user.businessName || user.name}`;
+      
+      window.location.href = `mailto:${invoice.clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
   const confirmDelete = () => {
     if (invoiceToDelete) {
       onDelete(invoiceToDelete);
@@ -56,7 +85,6 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
 
   const filteredInvoices = invoices.filter((invoice) => {
     const term = searchTerm.toLowerCase();
-    
     const invoiceNum = invoice.number || ''; 
 
     const matchesSearch = 
@@ -193,7 +221,6 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
                   <th className="px-6 py-4">Client</th>
                   <th className="px-6 py-4">Date</th>
                   <th className="px-6 py-4 text-right">Montant</th>
-                  {/* 👇 NOUVELLE COLONNE VIA */}
                   <th className="px-6 py-4 text-center">Via</th>
                   <th className="px-6 py-4 text-center">Statut</th>
                   <th className="px-6 py-4 text-right">Actions</th>
@@ -216,7 +243,6 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
                         {formatPrice(invoice.total, user.currency)}
                         </td>
                         
-                        {/* 👇 NOUVELLE CELLULE VIA */}
                         <td className="px-6 py-4 text-center">
                             {invoice.paymentMethod ? (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 text-xs font-semibold border border-slate-200">
@@ -238,6 +264,24 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
                         <div className="flex items-center justify-end gap-2 transition-opacity">
                             {!isStarter ? (
                                 <>
+                                    {/* 👇 NOUVEAU BOUTON WHATSAPP */}
+                                    <button
+                                        onClick={() => handleWhatsAppShare(invoice)}
+                                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-transparent hover:border-emerald-200"
+                                        title="Envoyer sur WhatsApp"
+                                    >
+                                        <MessageCircle className="w-4 h-4" />
+                                    </button>
+
+                                    {/* 👇 NOUVEAU BOUTON EMAIL */}
+                                    <button
+                                        onClick={() => handleEmailShare(invoice)}
+                                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-200"
+                                        title="Envoyer par Email"
+                                    >
+                                        <Mail className="w-4 h-4" />
+                                    </button>
+
                                     {onEdit && (
                                     <button
                                         onClick={() => onEdit(invoice)}
