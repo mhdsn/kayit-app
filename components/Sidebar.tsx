@@ -10,7 +10,8 @@ import {
   ChevronRight,
   Building2,
   Infinity,
-  PlusCircle
+  PlusCircle,
+  TrendingDown // 👈 AJOUT ICI
 } from 'lucide-react';
 import { AppRoute, Invoice, User } from '../types';
 
@@ -37,6 +38,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: AppRoute.DASHBOARD, label: 'Tableau de bord', icon: LayoutDashboard },
     { id: AppRoute.INVOICES, label: 'Mes factures', icon: FileText },
+    // 👇 NOUVEL ITEM : DÉPENSES
+    { id: AppRoute.EXPENSES, label: 'Dépenses', icon: TrendingDown },
     { id: AppRoute.CREATE_INVOICE, label: 'Créer une facture', icon: PlusCircle },
   ];
 
@@ -235,7 +238,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </div>
             </div>
             
-            {/* 👇 BOUTON DECONNEXION BLINDÉ POUR MOBILE */}
+            {/* BOUTON DECONNEXION BLINDÉ POUR MOBILE */}
             <button 
                 onClick={(e) => {
                     // Empêche le clic de traverser ou de double-cliquer

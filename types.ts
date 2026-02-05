@@ -50,6 +50,7 @@ export interface AuthState {
 export enum AppRoute {
   DASHBOARD = 'dashboard',
   INVOICES = 'invoices',
+  EXPENSES = 'expenses',
   CREATE_INVOICE = 'create-invoice',
   SETTINGS = 'settings',
   PRICING = 'pricing'
@@ -78,7 +79,7 @@ export const formatPrice = (amount: number, currencyCode: string = 'XOF') => {
     return amount + ' ' + currencyCode;
   }
 };
-// ... (Garde tes interfaces InvoiceItem, Invoice existantes)
+
 
 export interface Client {
   id?: string; // Optionnel car généré par la DB
@@ -86,4 +87,11 @@ export interface Client {
   email?: string;
   address?: string;
   phone?: string;
+}
+export interface Expense {
+  id: string;
+  description: string;
+  amount: number;
+  category: string;
+  date: string;
 }

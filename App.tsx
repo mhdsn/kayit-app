@@ -4,22 +4,28 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import InvoiceForm from './components/InvoiceForm';
 import InvoiceList from './components/InvoiceList';
+import Expenses from './components/Expenses'; // 👇 AJOUT IMPORT
 import Auth from './components/Auth';
 import LandingPage from './components/LandingPage';
 import Pricing from './components/Pricing';
 import Settings from './components/Settings';
-import { AppRoute, Invoice, User, UserPlan } from './types';
+import { AppRoute, Invoice, User, UserPlan, Expense } from './types'; // 👇 AJOUT Expense
 import { supabase } from './services/supabaseClient';
 import { 
   getInvoices, 
   saveInvoice, 
   deleteInvoice 
 } from './services/storageService';
+// 👇 AJOUT SERVICE DEPENSES
+import { getExpenses, addExpense, deleteExpense } from './services/expenseService';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(AppRoute.DASHBOARD);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  // 👇 NOUVEL ÉTAT POUR LES DÉPENSES
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  
   const [editingInvoice, setEditingInvoice] = useState<Invoice | undefined>(undefined);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'info'} | null>(null);
@@ -69,6 +75,7 @@ const App: React.FC = () => {
         } else if (event === 'SIGNED_OUT') {
             setUser(null);
             setInvoices([]);
+            setExpenses([]); // Reset dépenses
             setShowLanding(true);
         }
         setIsLoading(false);
@@ -78,7 +85,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (user) { loadInvoicesData(); } else { setInvoices([]); }
+    if (user) { loadData(); } else { setInvoices([]); setExpenses([]); }
   }, [user]);
 
   useEffect(() => {
@@ -99,9 +106,14 @@ const App: React.FC = () => {
     handlePaymentReturn();
   }, [user]);
 
-  const loadInvoicesData = async () => {
-    const data = await getInvoices();
-    setInvoices(data);
+  // 👇 MODIFIÉ : Chargement Invoices + Expenses
+  const loadData = async () => {
+    const [invData, expData] = await Promise.all([
+        getInvoices(),
+        getExpenses()
+    ]);
+    setInvoices(invData);
+    setExpenses(expData);
   };
 
   const showNotification = (message: string, type: 'success' | 'info' = 'success') => {
@@ -148,11 +160,30 @@ const App: React.FC = () => {
       } 
   };
 
-  const handleSaveInvoice = async (inv: Invoice) => { const updated = editingInvoice ? invoices.map(i => i.id === inv.id ? inv : i) : [inv, ...invoices]; setInvoices(updated); setEditingInvoice(undefined); setCurrentRoute(AppRoute.INVOICES); showNotification(editingInvoice ? 'Facture mise à jour' : 'Nouvelle facture créée', 'success'); await saveInvoice(inv); loadInvoicesData(); };
+  const handleSaveInvoice = async (inv: Invoice) => { const updated = editingInvoice ? invoices.map(i => i.id === inv.id ? inv : i) : [inv, ...invoices]; setInvoices(updated); setEditingInvoice(undefined); setCurrentRoute(AppRoute.INVOICES); showNotification(editingInvoice ? 'Facture mise à jour' : 'Nouvelle facture créée', 'success'); await saveInvoice(inv); loadData(); };
   const handleEditInvoice = (inv: Invoice) => { setEditingInvoice(inv); setCurrentRoute(AppRoute.CREATE_INVOICE); };
   const handleDeleteInvoice = async (id: string) => { setInvoices(invoices.filter(i => i.id !== id)); showNotification('Facture supprimée', 'info'); await deleteInvoice(id); };
   const handleCancelForm = () => { setEditingInvoice(undefined); setCurrentRoute(AppRoute.DASHBOARD); };
   
+  // 👇 GESTION DES DÉPENSES
+  const handleAddExpense = async (newExpense: Omit<Expense, 'id'>) => {
+    try {
+        const saved = await addExpense(newExpense);
+        if (saved) {
+            setExpenses([saved, ...expenses]);
+            showNotification("Dépense ajoutée", 'success');
+        }
+    } catch (e) { showNotification("Erreur ajout dépense", 'info'); }
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    try {
+        await deleteExpense(id);
+        setExpenses(expenses.filter(e => e.id !== id));
+        showNotification("Dépense supprimée", 'info');
+    } catch (e) { showNotification("Erreur suppression", 'info'); }
+  };
+
   // 👇 MODIFICATION : Interception de la navigation
   const handleNavigate = (route: AppRoute) => { 
       if (hasUnsavedChanges) {
@@ -198,7 +229,8 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (currentRoute) {
       case AppRoute.DASHBOARD:
-        return <Dashboard invoices={invoices} user={user} onNavigate={(route) => handleNavigate(route as AppRoute)} />;
+        // 👇 On passe les expenses au dashboard
+        return <Dashboard invoices={invoices} expenses={expenses} user={user} onNavigate={(route) => handleNavigate(route as AppRoute)} />;
       case AppRoute.INVOICES:
         return <InvoiceList invoices={invoices} user={user} onDelete={handleDeleteInvoice} onEdit={handleEditInvoice} />;
       case AppRoute.CREATE_INVOICE:
@@ -212,6 +244,9 @@ const App: React.FC = () => {
             initialData={editingInvoice} 
           />
         );
+      // 👇 NOUVELLE ROUTE DEPENSES
+      case AppRoute.EXPENSES:
+        return <Expenses expenses={expenses} user={user} onAdd={handleAddExpense} onDelete={handleDeleteExpense} />;
       case AppRoute.SETTINGS:
         // 👇 PASSAGE DE LA PROP ICI
         return <Settings 

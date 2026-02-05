@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Invoice, User, AppRoute, formatPrice } from '../types';
+import { Invoice, User, AppRoute, formatPrice, Expense } from '../types'; // 👇 AJOUT Expense
 import { 
   AreaChart, 
   Area, 
@@ -21,18 +21,21 @@ import {
   ArrowUpRight,
   CheckCircle2,
   Clock,
-  ArrowRight
+  ArrowRight,
+  TrendingDown, // 👇 AJOUT
+  Wallet // 👇 AJOUT
 } from 'lucide-react';
 
 interface DashboardProps {
   invoices: Invoice[];
+  expenses: Expense[]; // 👇 AJOUT PROP
   user: User;
   onNavigate: (route: string) => void;
 }
 
 type Period = 'day' | 'month' | 'year' | 'custom';
 
-const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ invoices, expenses, user, onNavigate }) => {
   const isBusiness = user.plan === 'business';
   
   // --- STATES ---
@@ -44,16 +47,20 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
 
   const formatMoney = (amount: number) => formatPrice(amount, user.currency);
 
-  // --- KPI GLOBAUX (Pour tous - restent inchangés) ---
+  // --- KPI GLOBAUX ---
   const globalStats = useMemo(() => {
     const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.total, 0);
     const pendingAmount = invoices.filter(i => i.status === 'pending').reduce((sum, i) => sum + i.total, 0);
     const activeClients = new Set(invoices.map(i => i.clientName)).size;
-    return { totalRevenue, pendingAmount, activeClients };
-  }, [invoices]);
+    
+    // 👇 NOUVEAUX CALCULS
+    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const netProfit = totalRevenue - totalExpenses;
 
-  // --- 🔥 1. FILTRAGE CENTRALISÉ (Nouveau) ---
-  // On crée une liste filtrée qui servira à la fois pour le Graphique et pour le Top Clients
+    return { totalRevenue, pendingAmount, activeClients, totalExpenses, netProfit };
+  }, [invoices, expenses]); // Dépendance expenses ajoutée
+
+  // --- 🔥 1. FILTRAGE CENTRALISÉ (Inchangé) ---
   const filteredPaidInvoices = useMemo(() => {
       const now = new Date();
       const currentYear = now.getFullYear();
@@ -61,7 +68,7 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
       const todayStr = now.toISOString().split('T')[0];
 
       return invoices.filter(inv => {
-          if (inv.status !== 'paid') return false; // Uniquement payées
+          if (inv.status !== 'paid') return false; 
 
           const d = new Date(inv.date);
           const dateStr = inv.date; 
@@ -75,7 +82,7 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
       });
   }, [invoices, period, customRange]);
 
-  // --- DONNÉES DU GRAPHIQUE ---
+  // --- DONNÉES DU GRAPHIQUE (Inchangé) ---
   const chartData = useMemo(() => {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -84,17 +91,9 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
     let data: { name: string; amount: number; fullDate?: string }[] = [];
 
     if (period === 'day') {
-       // 🔥 CORRECTION "CE JOUR" : On affiche chaque facture pour créer une courbe
        if (filteredPaidInvoices.length === 0) return [];
-
-       // On ajoute un point de départ à 0 pour que le graphique soit joli
        data.push({ name: 'Début', amount: 0 });
-
-       let runningTotal = 0;
-       // On trie par date de création (si dispo) ou on les affiche dans l'ordre
        filteredPaidInvoices.forEach((inv, index) => {
-           // Si on veut afficher le cumul : runningTotal += inv.total;
-           // Si on veut afficher le montant par facture (plus logique pour une analyse de flux) :
            data.push({ 
                name: inv.clientName.length > 10 ? inv.clientName.substring(0, 8) + '..' : inv.clientName, 
                amount: inv.total,
@@ -103,21 +102,19 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
        });
     } 
     else if (period === 'month') {
-        // (Code existant inchangé pour le mois)
         const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const amount = filteredPaidInvoices // On utilise la liste filtrée pour optimiser
+            const amount = filteredPaidInvoices
                 .filter(i => i.date === dateStr)
                 .reduce((sum, i) => sum + i.total, 0);
             data.push({ name: String(d), amount, fullDate: dateStr });
         }
     } 
     else if (period === 'year') {
-        // (Code existant inchangé pour l'année)
         const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
         data = months.map((m, index) => {
-            const amount = invoices // On reprend invoices global car filteredPaidInvoices est filtré par année courante, ok
+            const amount = invoices 
                 .filter(i => i.status === 'paid')
                 .filter(i => {
                     const d = new Date(i.date);
@@ -128,10 +125,8 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
         });
     } 
     else if (period === 'custom') {
-        // Pour custom, on groupe par jour existant
         const grouped = new Map<string, number>();
         filteredPaidInvoices.forEach(inv => {
-             // Clé simple pour l'affichage
              const key = new Date(inv.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
              grouped.set(key, (grouped.get(key) || 0) + inv.total);
         });
@@ -141,14 +136,12 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
     return data;
   }, [invoices, filteredPaidInvoices, period, customRange]);
 
-  // Total sur la période sélectionnée
   const periodTotal = useMemo(() => filteredPaidInvoices.reduce((sum, i) => sum + i.total, 0), [filteredPaidInvoices]);
 
-  // --- 🔥 2. TOP CLIENTS CORRIGÉ (Basé sur la période) ---
+  // --- 🔥 2. TOP CLIENTS (Inchangé) ---
   const topClients = useMemo(() => {
     const clientMap = new Map<string, { count: number; total: number }>();
     
-    // On itère sur filteredPaidInvoices au lieu de toutes les factures !
     filteredPaidInvoices.forEach(inv => {
         const current = clientMap.get(inv.clientName) || { count: 0, total: 0 };
         clientMap.set(inv.clientName, {
@@ -160,7 +153,7 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
     return Array.from(clientMap.entries())
         .map(([name, data]) => ({ name, ...data }))
         .sort((a, b) => b.total - a.total)
-        .slice(0, 5); // Top 5
+        .slice(0, 5); 
   }, [filteredPaidInvoices]);
 
   return (
@@ -181,17 +174,45 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
         </button>
       </div>
 
-      {/* --- KPI GLOBAUX --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* --- KPI GLOBAUX (MODIFIÉ POUR INCLURE DÉPENSES & BÉNÉFICE) --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"> {/* Changement ici : grid-cols-4 */}
+        
+        {/* CA TOTAL */}
         <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 flex items-center gap-4 hover:shadow-float transition-all group">
             <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:scale-110 transition-transform">
                 <TrendingUp className="w-8 h-8" />
             </div>
             <div>
-                <p className="text-sm font-medium text-slate-500">CA Total Encaissé</p>
+                <p className="text-sm font-medium text-slate-500">CA Total</p>
                 <h3 className="text-2xl font-bold text-slate-900">{formatMoney(globalStats.totalRevenue)}</h3>
             </div>
         </div>
+
+        {/* DÉPENSES (NOUVEAU) */}
+        <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 flex items-center gap-4 hover:shadow-float transition-all group">
+            <div className="p-4 bg-red-50 text-red-600 rounded-2xl group-hover:scale-110 transition-transform">
+                <TrendingDown className="w-8 h-8" />
+            </div>
+            <div>
+                <p className="text-sm font-medium text-slate-500">Dépenses</p>
+                <h3 className="text-2xl font-bold text-slate-900">{formatMoney(globalStats.totalExpenses)}</h3>
+            </div>
+        </div>
+
+        {/* BÉNÉFICE NET (NOUVEAU) */}
+        <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 flex items-center gap-4 hover:shadow-float transition-all group">
+            <div className={`p-4 rounded-2xl group-hover:scale-110 transition-transform ${globalStats.netProfit >= 0 ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                <Wallet className="w-8 h-8" />
+            </div>
+            <div>
+                <p className="text-sm font-medium text-slate-500">Bénéfice Net</p>
+                <h3 className={`text-2xl font-bold ${globalStats.netProfit >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                    {globalStats.netProfit > 0 ? '+' : ''}{formatMoney(globalStats.netProfit)}
+                </h3>
+            </div>
+        </div>
+
+        {/* EN ATTENTE */}
         <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 flex items-center gap-4 hover:shadow-float transition-all group">
             <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl group-hover:scale-110 transition-transform">
                 <Briefcase className="w-8 h-8" />
@@ -199,15 +220,6 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
             <div>
                 <p className="text-sm font-medium text-slate-500">En attente</p>
                 <h3 className="text-2xl font-bold text-slate-900">{formatMoney(globalStats.pendingAmount)}</h3>
-            </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 flex items-center gap-4 hover:shadow-float transition-all group">
-            <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl group-hover:scale-110 transition-transform">
-                <Users className="w-8 h-8" />
-            </div>
-            <div>
-                <p className="text-sm font-medium text-slate-500">Clients actifs</p>
-                <h3 className="text-2xl font-bold text-slate-900">{globalStats.activeClients}</h3>
             </div>
         </div>
       </div>
