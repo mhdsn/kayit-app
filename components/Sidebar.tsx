@@ -12,7 +12,8 @@ import {
   Infinity,
   BarChart3,
   PlusCircle,
-  TrendingDown // 👈 AJOUT ICI
+  TrendingDown,
+  Lock // 👈 AJOUT IMPORT
 } from 'lucide-react';
 import { AppRoute, Invoice, User } from '../types';
 
@@ -36,13 +37,16 @@ const Sidebar: React.FC<SidebarProps> = ({
   setIsMobileOpen
 }) => {
   
+  // 👇 AJOUT : Vérification du plan
+  const isBusiness = user.plan === 'business';
+
+  // 👇 AJOUT : Propriété 'locked'
   const navItems = [
-    { id: AppRoute.DASHBOARD, label: 'Tableau de bord', icon: LayoutDashboard },
-    { id: AppRoute.REVENUE, label: 'Analyse Financière', icon: BarChart3 },
-    { id: AppRoute.INVOICES, label: 'Mes factures', icon: FileText },
-    // 👇 NOUVEL ITEM : DÉPENSES
-    { id: AppRoute.EXPENSES, label: 'Dépenses', icon: TrendingDown },
-    { id: AppRoute.CREATE_INVOICE, label: 'Créer une facture', icon: PlusCircle },
+    { id: AppRoute.DASHBOARD, label: 'Tableau de bord', icon: LayoutDashboard, locked: false },
+    { id: AppRoute.REVENUE, label: 'Analyse Financière', icon: BarChart3, locked: !isBusiness }, // Verrouillé si pas Business
+    { id: AppRoute.INVOICES, label: 'Mes factures', icon: FileText, locked: false },
+    { id: AppRoute.EXPENSES, label: 'Dépenses', icon: TrendingDown, locked: !isBusiness }, // Verrouillé si pas Business
+    { id: AppRoute.CREATE_INVOICE, label: 'Créer une facture', icon: PlusCircle, locked: false },
   ];
 
   // --- LOGIQUE DES QUOTAS ---
@@ -141,10 +145,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                         }`}
                     >
                         <div className="flex items-center">
-                            <item.icon className={`w-5 h-5 mr-3 transition-colors ${currentRoute === item.id ? 'text-brand-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
-                            <span>{item.label}</span>
+                            {/* Icône (avec gestion de couleur si verrouillé) */}
+                            <item.icon className={`w-5 h-5 mr-3 transition-colors ${
+                                currentRoute === item.id 
+                                ? 'text-brand-600' 
+                                : item.locked ? 'text-slate-300' : 'text-slate-400 group-hover:text-slate-600'
+                            }`} />
+                            <span className={item.locked ? 'text-slate-400' : ''}>{item.label}</span>
                         </div>
-                        {currentRoute === item.id && <ChevronRight className="w-4 h-4 text-brand-400" />}
+                        
+                        {/* 👇 GESTION DU CADENAS OU DE LA FLÈCHE */}
+                        {item.locked ? (
+                            <Lock className="w-3.5 h-3.5 text-slate-300" />
+                        ) : (
+                            currentRoute === item.id && <ChevronRight className="w-4 h-4 text-brand-400" />
+                        )}
                     </button>
                 ))}
             </div>

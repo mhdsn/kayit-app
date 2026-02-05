@@ -4,27 +4,26 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import InvoiceForm from './components/InvoiceForm';
 import InvoiceList from './components/InvoiceList';
-import Expenses from './components/Expenses'; // 👇 AJOUT IMPORT
+import Expenses from './components/Expenses';
 import Auth from './components/Auth';
 import LandingPage from './components/LandingPage';
 import Pricing from './components/Pricing';
 import Settings from './components/Settings';
 import Revenue from './components/Revenue';
-import { AppRoute, Invoice, User, UserPlan, Expense } from './types'; // 👇 AJOUT Expense
+import { AppRoute, Invoice, User, UserPlan, Expense } from './types';
 import { supabase } from './services/supabaseClient';
+import UpgradeToBusiness from './components/UpgradeToBusiness';
 import { 
   getInvoices, 
   saveInvoice, 
   deleteInvoice 
 } from './services/storageService';
-// 👇 AJOUT SERVICE DEPENSES
 import { getExpenses, addExpense, deleteExpense } from './services/expenseService';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(AppRoute.DASHBOARD);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  // 👇 NOUVEL ÉTAT POUR LES DÉPENSES
   const [expenses, setExpenses] = useState<Expense[]>([]);
   
   const [editingInvoice, setEditingInvoice] = useState<Invoice | undefined>(undefined);
@@ -36,7 +35,7 @@ const App: React.FC = () => {
   const [showLanding, setShowLanding] = useState(true);
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'signup'>('login');
 
-  // 👇 NOUVEAU : État pour sécuriser la navigation
+  // État pour sécuriser la navigation
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   useEffect(() => {
@@ -53,7 +52,7 @@ const App: React.FC = () => {
             logo: meta.logo || undefined,
             brandColor: meta.brandColor || undefined,
             address: meta.address || '',
-            defaultNote: meta.default_note || '' // 👈 AJOUT : Chargement de la note
+            defaultNote: meta.default_note || ''
         };
     };
 
@@ -76,7 +75,7 @@ const App: React.FC = () => {
         } else if (event === 'SIGNED_OUT') {
             setUser(null);
             setInvoices([]);
-            setExpenses([]); // Reset dépenses
+            setExpenses([]);
             setShowLanding(true);
         }
         setIsLoading(false);
@@ -107,7 +106,6 @@ const App: React.FC = () => {
     handlePaymentReturn();
   }, [user]);
 
-  // 👇 MODIFIÉ : Chargement Invoices + Expenses
   const loadData = async () => {
     const [invData, expData] = await Promise.all([
         getInvoices(),
@@ -126,16 +124,10 @@ const App: React.FC = () => {
     setCurrentRoute(AppRoute.DASHBOARD);
   };
 
-  // 👇 LOGOUT RADICAL (Redirection forcée)
   const handleLogout = async () => {
-    // 1. On vide le stockage
     localStorage.clear();
     sessionStorage.clear();
-
-    // 2. On prévient Supabase
     supabase.auth.signOut();
-
-    // 3. Force reload
     window.location.href = '/';
   };
 
@@ -151,11 +143,11 @@ const App: React.FC = () => {
                   logo: u.logo, 
                   brandColor: u.brandColor,
                   address: u.address,
-                  default_note: u.defaultNote // 👈 AJOUT : Sauvegarde de la note
+                  default_note: u.defaultNote
               } 
           }); 
           showNotification("Profil sauvegardé !", 'success'); 
-          setHasUnsavedChanges(false); // Reset protection après save réussi
+          setHasUnsavedChanges(false);
       } catch (e) { 
           showNotification("Erreur de sauvegarde.", 'info'); 
       } 
@@ -166,7 +158,6 @@ const App: React.FC = () => {
   const handleDeleteInvoice = async (id: string) => { setInvoices(invoices.filter(i => i.id !== id)); showNotification('Facture supprimée', 'info'); await deleteInvoice(id); };
   const handleCancelForm = () => { setEditingInvoice(undefined); setCurrentRoute(AppRoute.DASHBOARD); };
   
-  // 👇 GESTION DES DÉPENSES
   const handleAddExpense = async (newExpense: Omit<Expense, 'id'>) => {
     try {
         const saved = await addExpense(newExpense);
@@ -185,12 +176,11 @@ const App: React.FC = () => {
     } catch (e) { showNotification("Erreur suppression", 'info'); }
   };
 
-  // 👇 MODIFICATION : Interception de la navigation
   const handleNavigate = (route: AppRoute) => { 
       if (hasUnsavedChanges) {
           const confirm = window.confirm("Vous avez des modifications non enregistrées. Voulez-vous vraiment quitter ?");
-          if (!confirm) return; // On annule le changement de page
-          setHasUnsavedChanges(false); // On autorise le départ
+          if (!confirm) return;
+          setHasUnsavedChanges(false);
       }
 
       if (route === AppRoute.CREATE_INVOICE) setEditingInvoice(undefined); 
@@ -208,7 +198,6 @@ const App: React.FC = () => {
     );
   }
 
-  // GESTION DE L'AFFICHAGE PRINCIPAL
   if (!user) {
     if (showLanding) {
         return (
@@ -228,14 +217,20 @@ const App: React.FC = () => {
   }
 
   const renderContent = () => {
+    const isBusiness = user?.plan === 'business'; // Vérification du plan
+
     switch (currentRoute) {
       case AppRoute.DASHBOARD:
-        // 👇 On passe les expenses au dashboard
         return <Dashboard invoices={invoices} expenses={expenses} user={user} onNavigate={(route) => handleNavigate(route as AppRoute)} />;
+      
       case AppRoute.REVENUE:
+        // 👇 PROTECTION : REVENUS
+        if (!isBusiness) return <UpgradeToBusiness onUpgrade={() => handleNavigate(AppRoute.PRICING)} />;
         return <Revenue invoices={invoices} expenses={expenses} user={user} />;
-        case AppRoute.INVOICES:
+        
+      case AppRoute.INVOICES:
         return <InvoiceList invoices={invoices} user={user} onDelete={handleDeleteInvoice} onEdit={handleEditInvoice} />;
+      
       case AppRoute.CREATE_INVOICE:
         return (
           <InvoiceForm 
@@ -247,21 +242,24 @@ const App: React.FC = () => {
             initialData={editingInvoice} 
           />
         );
-      // 👇 NOUVELLE ROUTE DEPENSES
+      
       case AppRoute.EXPENSES:
+        // 👇 PROTECTION : DÉPENSES
+        if (!isBusiness) return <UpgradeToBusiness onUpgrade={() => handleNavigate(AppRoute.PRICING)} />;
         return <Expenses expenses={expenses} user={user} onAdd={handleAddExpense} onDelete={handleDeleteExpense} />;
+      
       case AppRoute.SETTINGS:
-        // 👇 PASSAGE DE LA PROP ICI
         return <Settings 
             user={user} 
             onUpdateUser={handleUpdateUser} 
             setHasUnsavedChanges={setHasUnsavedChanges} 
         />;
+      
       case AppRoute.PRICING:
         return <Pricing user={user} onUpgrade={handleUpgrade} onDowngrade={handleDowngrade} />;
+      
       default:
         return <div>Introuvable</div>;
-        
     }
   };
 
