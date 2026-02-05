@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Invoice, User, formatPrice } from '../types';
 import { generateInvoicePDF } from '../services/pdfService';
-import { Download, Trash2, Search, Filter, FileText, Pencil, Check, AlertTriangle, Lock, Loader2 } from 'lucide-react';
+// 👇 AJOUT DE 'Wallet' DANS LES IMPORTS
+import { Download, Trash2, Search, Filter, FileText, Pencil, Check, AlertTriangle, Lock, Loader2, Wallet } from 'lucide-react';
 
 interface InvoiceListProps {
   invoices: Invoice[];
@@ -16,12 +17,10 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
   
-  // 👇 NOUVEAU : Pour gérer le chargement pendant le téléchargement
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   
   const filterMenuRef = useRef<HTMLDivElement>(null);
 
-  // PLAN STARTER : Pas d'historique complet (limite à 30 jours)
   const isStarter = user.plan === 'starter';
 
   useEffect(() => {
@@ -34,18 +33,16 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 👇 MODIFIÉ : Fonction async pour gérer le partage mobile
   const handleDownload = async (invoice: Invoice) => {
-    setDownloadingId(invoice.id); // Active le loader
+    setDownloadingId(invoice.id); 
     
-    // Petit timeout pour laisser le temps à l'UI de s'afficher
     setTimeout(async () => {
         try {
             await generateInvoicePDF(invoice, user);
         } catch (error) {
             console.error("Erreur génération PDF", error);
         } finally {
-            setDownloadingId(null); // Désactive le loader
+            setDownloadingId(null); 
         }
     }, 50);
   };
@@ -57,21 +54,18 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
     }
   };
 
-  // Filtrage combiné : Recherche texte + Statut + Historique
   const filteredInvoices = invoices.filter((invoice) => {
     const term = searchTerm.toLowerCase();
     
-    const invoiceNum = invoice.number || ''; // Sécurité si jamais vide
+    const invoiceNum = invoice.number || ''; 
 
     const matchesSearch = 
       invoice.clientName.toLowerCase().includes(term) ||
       invoiceNum.toLowerCase().includes(term) ||
       (invoice.clientEmail && invoice.clientEmail.toLowerCase().includes(term));
     
-    // Filtre Statut
     const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter;
 
-    // Filtre Historique (Starter : Max 30 jours)
     let matchesHistory = true;
     if (isStarter) {
         const invoiceDate = new Date(invoice.date);
@@ -83,7 +77,6 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
     return matchesSearch && matchesStatus && matchesHistory;
   });
   
-  // Compter combien de factures sont masquées par la limite d'historique
   const hiddenCount = isStarter ? invoices.length - invoices.filter(inv => {
       const invoiceDate = new Date(inv.date);
       const thirtyDaysAgo = new Date();
@@ -200,6 +193,8 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
                   <th className="px-6 py-4">Client</th>
                   <th className="px-6 py-4">Date</th>
                   <th className="px-6 py-4 text-right">Montant</th>
+                  {/* 👇 NOUVELLE COLONNE VIA */}
+                  <th className="px-6 py-4 text-center">Via</th>
                   <th className="px-6 py-4 text-center">Statut</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
@@ -207,7 +202,6 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
               <tbody className="divide-y divide-slate-100">
                 {filteredInvoices.map((invoice) => {
                     const status = statusConfig[invoice.status] || statusConfig.draft;
-                    // On vérifie si c'est CETTE facture qui est en cours de téléchargement
                     const isDownloading = downloadingId === invoice.id;
 
                     return (
@@ -221,6 +215,19 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
                         <td className="px-6 py-4 text-right font-bold text-slate-900">
                         {formatPrice(invoice.total, user.currency)}
                         </td>
+                        
+                        {/* 👇 NOUVELLE CELLULE VIA */}
+                        <td className="px-6 py-4 text-center">
+                            {invoice.paymentMethod ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 text-xs font-semibold border border-slate-200">
+                                    <Wallet className="w-3 h-3 text-slate-400" />
+                                    {invoice.paymentMethod}
+                                </span>
+                            ) : (
+                                <span className="text-slate-300">-</span>
+                            )}
+                        </td>
+
                         <td className="px-6 py-4 text-center">
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${status.classes}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${status.dot}`}></span>
@@ -240,7 +247,7 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
                                         <Pencil className="w-4 h-4" />
                                     </button>
                                     )}
-                                    {/* 👇 BOUTON MODIFIÉ AVEC LOADER */}
+                                    
                                     <button
                                         onClick={() => handleDownload(invoice)}
                                         disabled={isDownloading}
@@ -277,11 +284,11 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ invoices, user, onDelete, onE
                                         )}
                                     </button>
                                      <button
-                                         disabled
-                                         className="p-2 text-slate-200 cursor-not-allowed"
-                                         title="Modification disponible en version Pro"
+                                      disabled
+                                      className="p-2 text-slate-200 cursor-not-allowed"
+                                      title="Modification disponible en version Pro"
                                      >
-                                         <Lock className="w-4 h-4" />
+                                      <Lock className="w-4 h-4" />
                                      </button>
                                 </div>
                             )}
