@@ -8,6 +8,7 @@ const TEXT_GRAY = '#64748b';
 
 const getTheme = (user: User) => {
   const isBusiness = user.plan === 'business';
+  // 👇 C'est ici que la personnalisation se fait : on utilise la couleur de la marque
   const accentColor = (isBusiness && user.brandColor) ? user.brandColor : STANDARD_BLUE;
   
   return {
@@ -18,8 +19,7 @@ const getTheme = (user: User) => {
       white: '#ffffff',
     },
     bg: {
-      tableHeader: isBusiness ? accentColor : '#f1f5f9', 
-      totalHighlight: isBusiness ? accentColor : '#f8fafc',
+      header: accentColor,
       stripe: '#f8fafc',
     },
     border: '#e2e8f0',
@@ -27,14 +27,11 @@ const getTheme = (user: User) => {
   };
 };
 
-// 👇 CORRECTION : On utilise des espaces simples pour éviter les "/" bizarres
+// Formatage propre pour éviter les bugs d'affichage PDF
 const formatMoney = (amount: number, currency: string = 'XOF') => {
-    // 1. Convertir en entier (pas de décimales pour XOF généralement)
-    // 2. Ajouter un espace tous les 3 chiffres via Regex
-    const cleanAmount = amount.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-    
-    // 3. Retourner le format "100 000 XOF"
-    return `${cleanAmount} ${currency}`;
+    const integerPart = amount.toFixed(0);
+    const formatted = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return `${formatted} ${currency}`;
 };
 
 const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
@@ -56,164 +53,179 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
   let cursorY = margin;
 
   // =================================================================
-  // 💎 DESIGN BUSINESS
+  // 💎 DESIGN BUSINESS (Personnalisable & Structuré)
   // =================================================================
   if (isBusiness) {
       
-      doc.setFillColor(theme.accent);
-      doc.rect(0, 0, pageWidth, 4, 'F'); 
-      cursorY = margin + 10;
-
+      // --- 1. EN-TÊTE (Gauche : Emetteur / Droite : Client) ---
+      let leftY = margin + 5;
+      
       // LOGO
       if (user.logo) {
           try {
              const imgProps = doc.getImageProperties(user.logo);
              const ratio = imgProps.width / imgProps.height;
-             let w = 40; let h = w / ratio;
+             let w = 35; let h = w / ratio;
              if(h > 25) { h = 25; w = h * ratio; }
-             doc.addImage(user.logo, margin, cursorY, w, h);
-          } catch (e) {
-             setFont('bold', 22, theme.text.primary);
-             doc.text(user.businessName || user.name, margin, cursorY + 10);
-          }
-      } else {
-         setFont('bold', 22, theme.text.primary);
-         doc.text(user.businessName || user.name, margin, cursorY + 10);
+             doc.addImage(user.logo, margin, leftY, w, h);
+             leftY += h + 8;
+          } catch (e) {}
       }
 
-      const rightX = pageWidth - margin;
-      setFont('bold', 32, theme.text.primary);
-      doc.text("FACTURE", rightX, cursorY + 10, { align: 'right' });
-      setFont('normal', 10, theme.text.accent);
-      doc.text(`#${invoice.number}`, rightX, cursorY + 18, { align: 'right' });
+      // INFO ENTREPRISE
+      setFont('bold', 16, theme.accent); // Utilise la couleur de la marque
+      doc.text(user.businessName || user.name, margin, leftY + 5);
+      leftY += 12;
 
-      const statusLabel = invoice.status === 'paid' ? 'PAYÉE' : invoice.status === 'pending' ? 'EN ATTENTE' : 'BROUILLON';
-      const statusColor = invoice.status === 'paid' ? '#10b981' : invoice.status === 'pending' ? '#f59e0b' : '#94a3b8';
-      doc.setFontSize(9);
-      const badgeWidth = doc.getTextWidth(statusLabel) + 12;
-      doc.setDrawColor(statusColor);
-      doc.setFillColor(statusColor);
-      doc.roundedRect(rightX - badgeWidth, cursorY + 24, badgeWidth, 7, 2, 2, 'F');
-      doc.setTextColor('#ffffff');
-      doc.setFont('helvetica', 'bold');
-      doc.text(statusLabel, rightX - badgeWidth / 2, cursorY + 28.5, { align: 'center' });
-
-      cursorY += 45;
-
-      const midPoint = pageWidth / 2;
-      setFont('bold', 8, '#94a3b8');
-      doc.text("ÉMIS PAR", margin, cursorY);
-      setFont('bold', 11, theme.text.primary);
-      doc.text(user.businessName || user.name, margin, cursorY + 6);
-      setFont('normal', 9, theme.text.secondary);
-      let senderY = cursorY + 11;
-      doc.text(user.email, margin, senderY);
-      if (user.phone) doc.text(user.phone, margin, senderY += 5);
-
-      setFont('bold', 8, '#94a3b8');
-      doc.text("FACTURÉ À", midPoint, cursorY);
-      setFont('bold', 11, theme.text.primary);
-      doc.text(invoice.clientName, midPoint, cursorY + 6);
-      setFont('normal', 9, theme.text.secondary);
-      let clientY = cursorY + 11;
-      if (invoice.clientEmail) doc.text(invoice.clientEmail, midPoint, clientY);
+      setFont('bold', 8, TEXT_DARK);
+      doc.text("ÉMIS PAR :", margin, leftY);
+      setFont('normal', 9, TEXT_GRAY);
       
-      const datesY = Math.max(senderY, clientY) + 15;
-      doc.setDrawColor(theme.border);
-      doc.line(margin, datesY, pageWidth - margin, datesY);
+      const senderLines = doc.splitTextToSize(`${user.address || ''}\n${user.phone || ''}\n${user.email}`, 80);
+      doc.text(senderLines, margin, leftY + 5);
       
-      const dateSectionY = datesY + 8;
-      setFont('bold', 9, theme.text.primary);
-      doc.text("Date d'émission", margin, dateSectionY);
-      setFont('normal', 9, theme.text.secondary);
-      doc.text(new Date(invoice.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }), margin, dateSectionY + 5);
+      const finalLeftY = leftY + 5 + (senderLines.length * 4);
 
-      // ECHEANCE OPTIONNELLE
-      if (invoice.dueDate) {
-          setFont('bold', 9, theme.text.primary);
-          doc.text("Date d'échéance", midPoint, dateSectionY);
-          setFont('normal', 9, theme.text.secondary);
-          doc.text(new Date(invoice.dueDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }), midPoint, dateSectionY + 5);
-      }
+      // INFO FACTURE (Colonne Droite)
+      let rightY = margin + 15;
+      const rightColX = pageWidth - margin;
 
-      cursorY = dateSectionY + 20;
+      setFont('bold', 32, theme.accent); 
+      doc.text("FACTURE", rightColX, rightY, { align: 'right' });
+      
+      setFont('bold', 10, TEXT_DARK);
+      doc.text(`#${invoice.number}`, rightColX, rightY + 10, { align: 'right' });
+      setFont('normal', 9, TEXT_GRAY);
+      doc.text(`Date : ${new Date(invoice.date).toLocaleDateString('fr-FR')}`, rightColX, rightY + 15, { align: 'right' });
 
-      // Tableau Business
+      // CLIENT (Décalé à droite)
+      rightY += 35;
+      const clientBoxX = pageWidth / 2 + 20;
+      
+      setFont('bold', 8, TEXT_DARK);
+      doc.text("FACTURÉ À :", clientBoxX, rightY);
+      
+      setFont('bold', 11, TEXT_DARK);
+      doc.text(invoice.clientName, clientBoxX, rightY + 6);
+      
+      setFont('normal', 9, TEXT_GRAY);
+      let clientText = "";
+      if (invoice.clientAddress) clientText += `${invoice.clientAddress}\n`;
+      if (invoice.clientEmail) clientText += `${invoice.clientEmail}`;
+      
+      const clientLines = doc.splitTextToSize(clientText, 70);
+      doc.text(clientLines, clientBoxX, rightY + 11);
+      
+      const finalRightY = rightY + 11 + (clientLines.length * 4);
+
+      cursorY = Math.max(finalLeftY, finalRightY) + 20;
+
+      // --- 2. TABLEAU (Header coloré) ---
       const colDesc = margin;
-      const colQty = pageWidth - margin - 80;
-      const colPrice = pageWidth - margin - 45;
+      const colPrice = pageWidth - margin - 75;
+      const colQty = pageWidth - margin - 45;
       const colTotal = pageWidth - margin;
 
-      doc.setFillColor(theme.accent);
-      doc.roundedRect(margin, cursorY, pageWidth - (margin * 2), 10, 2, 2, 'F');
-      const headerY = cursorY + 6.5;
-      setFont('bold', 8, theme.text.white);
-      doc.text('DESCRIPTION', colDesc + 5, headerY);
-      doc.text('QTÉ', colQty, headerY, { align: 'center' });
-      doc.text('PRIX UNIT.', colPrice, headerY, { align: 'right' });
-      doc.text('TOTAL', colTotal - 5, headerY, { align: 'right' });
-
-      cursorY += 14;
-
-      invoice.items.forEach((item, index) => {
-          const totalItem = item.quantity * item.price;
-          const descWidth = colQty - colDesc - 10;
-          const splitDesc = doc.splitTextToSize(item.description, descWidth);
-          const rowHeight = Math.max(10, splitDesc.length * 5 + 6);
-          if (cursorY + rowHeight > pageHeight - 50) { doc.addPage(); cursorY = margin; }
-          if (index % 2 !== 0) {
-             doc.setFillColor('#f8fafc');
-             doc.roundedRect(margin, cursorY - 2, pageWidth - margin*2, rowHeight, 1, 1, 'F');
-          }
-          setFont('bold', 9, theme.text.primary);
-          doc.text(splitDesc, colDesc + 5, cursorY + 3);
-          setFont('normal', 9, theme.text.secondary);
-          doc.text(item.quantity.toString(), colQty, cursorY + 3, { align: 'center' });
-          doc.text(formatMoney(item.price, invoice.currency), colPrice, cursorY + 3, { align: 'right' });
-          setFont('bold', 9, theme.text.primary);
-          doc.text(formatMoney(totalItem, invoice.currency), colTotal - 5, cursorY + 3, { align: 'right' });
-          cursorY += rowHeight;
-      });
+      doc.setFillColor(theme.accent); // Fond couleur personnalisée
+      doc.rect(margin, cursorY, pageWidth - (margin * 2), 10, 'F');
       
-      doc.setDrawColor(theme.accent);
-      doc.setLineWidth(0.5);
-      doc.line(margin, cursorY, pageWidth - margin, cursorY);
+      const headerTextY = cursorY + 6.5;
+      setFont('bold', 9, theme.text.white);
+      doc.text('DESCRIPTION', colDesc + 5, headerTextY);
+      doc.text('PRIX UNIT.', colPrice, headerTextY, { align: 'right' });
+      doc.text('QTÉ', colQty, headerTextY, { align: 'center' });
+      doc.text('TOTAL', colTotal - 5, headerTextY, { align: 'right' });
+
       cursorY += 10;
 
-      // NOTES ET PAIEMENT
-      const summaryWidth = 100;
-      const notesWidth = pageWidth - margin*2 - summaryWidth - 10;
-      let notesY = cursorY;
+      invoice.items.forEach((item) => {
+          const descWidth = colPrice - colDesc - 10;
+          const splitDesc = doc.splitTextToSize(item.description, descWidth);
+          const rowHeight = Math.max(12, splitDesc.length * 5 + 8);
+          
+          if (cursorY + rowHeight > pageHeight - 60) {
+              doc.addPage();
+              cursorY = margin;
+          }
 
-      if (invoice.notes || invoice.paymentMethod) {
-          if (invoice.paymentMethod) {
-              setFont('bold', 9, theme.text.primary);
-              doc.text(`Mode de paiement : ${invoice.paymentMethod}`, margin, notesY + 4);
-              notesY += 8;
-          }
-          if (invoice.notes) {
-               setFont('italic', 9, theme.text.secondary);
-               const splitNotes = doc.splitTextToSize(invoice.notes, notesWidth);
-               doc.text(splitNotes, margin, notesY + 4);
-          }
+          doc.setDrawColor('#e2e8f0');
+          doc.setLineWidth(0.5);
+          
+          setFont('bold', 9, TEXT_DARK);
+          doc.text(splitDesc, colDesc + 5, cursorY + 6);
+          
+          setFont('normal', 9, TEXT_GRAY);
+          doc.text(formatMoney(item.price, invoice.currency), colPrice, cursorY + 6, { align: 'right' });
+          doc.text(item.quantity.toString(), colQty, cursorY + 6, { align: 'center' });
+          
+          setFont('bold', 9, TEXT_DARK);
+          doc.text(formatMoney(item.price * item.quantity, invoice.currency), colTotal - 5, cursorY + 6, { align: 'right' });
+
+          cursorY += rowHeight;
+          doc.line(margin, cursorY, pageWidth - margin, cursorY);
+      });
+
+      // --- 3. TOTAUX ---
+      cursorY += 5;
+      const summaryWidth = 90;
+      const summaryX = pageWidth - margin - summaryWidth;
+
+      setFont('normal', 9, TEXT_GRAY);
+      doc.text("Sous-total :", summaryX, cursorY + 5);
+      setFont('bold', 9, TEXT_DARK);
+      doc.text(formatMoney(invoice.total, invoice.currency), pageWidth - margin - 5, cursorY + 5, { align: 'right' });
+
+      cursorY += 10;
+
+      // Total (Encadré couleur personnalisée)
+      doc.setFillColor(theme.accent);
+      doc.rect(summaryX - 5, cursorY, summaryWidth + 5, 12, 'F');
+      
+      setFont('bold', 10, theme.text.white);
+      doc.text("TOTAL À PAYER :", summaryX, cursorY + 8);
+      setFont('bold', 12, theme.text.white);
+      doc.text(formatMoney(invoice.total, invoice.currency), pageWidth - margin - 5, cursorY + 8, { align: 'right' });
+
+      // --- 4. PIED DE PAGE (3 Colonnes) ---
+      const footerY = pageHeight - 40;
+      doc.setDrawColor(theme.accent);
+      doc.setLineWidth(0.5);
+      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
+
+      // Contact
+      setFont('bold', 8, TEXT_DARK);
+      doc.text("NOUS CONTACTER", margin, footerY + 5);
+      setFont('normal', 7, TEXT_GRAY);
+      doc.text(user.email, margin, footerY + 10);
+      if(user.phone) doc.text(user.phone, margin, footerY + 14);
+
+      // Paiement
+      const col2X = margin + 60;
+      setFont('bold', 8, TEXT_DARK);
+      doc.text("PAIEMENT", col2X, footerY + 5);
+      setFont('normal', 7, TEXT_GRAY);
+      let payY = footerY + 10;
+      if (invoice.paymentMethod) {
+          doc.text(`Via : ${invoice.paymentMethod}`, col2X, payY);
+          payY += 4;
+      }
+      if (invoice.dueDate) {
+          doc.text(`Échéance : ${new Date(invoice.dueDate).toLocaleDateString('fr-FR')}`, col2X, payY);
       }
 
-      // Total Business
-      const summaryX = pageWidth - margin - summaryWidth;
-      const totalBoxY = cursorY + 2;
-      
-      doc.setFillColor(theme.accent); 
-      doc.roundedRect(summaryX, totalBoxY, summaryWidth, 14, 2, 2, 'F');
-      
-      const totalTextY = totalBoxY + 9;
-      setFont('bold', 11, theme.text.white);
-      doc.text("TOTAL À PAYER", summaryX + 5, totalTextY);
-      setFont('bold', 14, theme.text.white);
-      doc.text(formatMoney(invoice.total, invoice.currency), pageWidth - margin - 5, totalTextY, { align: 'right' });
+      // Notes
+      const col3X = margin + 120;
+      setFont('bold', 8, TEXT_DARK);
+      doc.text("NOTES", col3X, footerY + 5);
+      if (invoice.notes) {
+          setFont('normal', 7, TEXT_GRAY);
+          const splitNotes = doc.splitTextToSize(invoice.notes, pageWidth - col3X - margin);
+          doc.text(splitNotes, col3X, footerY + 10);
+      }
 
   } else {
       // =================================================================
-      // 🛡️ DESIGN STANDARD
+      // 🛡️ DESIGN STANDARD (Code existant inchangé)
       // =================================================================
       
       const showLogo = user.plan !== 'starter' && user.logo;
