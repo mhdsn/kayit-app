@@ -40,7 +40,7 @@ interface RevenueProps {
 }
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1'];
-type TimeRange = 'day' | 'month' | 'year' | 'all' | 'custom'; // 👇 Ajout de 'custom'
+type TimeRange = 'day' | 'month' | 'year' | 'all' | 'custom';
 
 // --- 1. FONCTIONS UTILITAIRES ---
 const calculateGrowth = (current: number, previous: number) => {
@@ -66,10 +66,9 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
   const [timeRange, setTimeRange] = useState<TimeRange>('year');
   const [viewMode, setViewMode] = useState<'flow' | 'cumulative'>('flow');
   
-  // 👇 État pour la période personnalisée
   const [customRange, setCustomRange] = useState({
-      start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0], // Début du mois par défaut
-      end: new Date().toISOString().split('T')[0] // Aujourd'hui
+      start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+      end: new Date().toISOString().split('T')[0]
   });
 
   // --- LOGIQUE DE DATES INTELLIGENTE ---
@@ -90,21 +89,18 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
           start.setFullYear(now.getFullYear() - offset, 0, 1);
           end.setFullYear(now.getFullYear() - offset, 11, 31);
       } else if (range === 'custom') {
-          // Logique pour Custom
           const s = new Date(customRange.start);
           const e = new Date(customRange.end);
           e.setHours(23, 59, 59, 999);
 
           if (offset > 0) {
-              // Comparaison : On recule d'autant de jours que la durée sélectionnée
-              const duration = e.getTime() - s.getTime(); // Durée en ms
-              const prevEnd = new Date(s.getTime() - 86400000); // 1 jour avant le début
+              const duration = e.getTime() - s.getTime();
+              const prevEnd = new Date(s.getTime() - 86400000);
               const prevStart = new Date(prevEnd.getTime() - duration);
               return { start: prevStart, end: prevEnd };
           }
           return { start: s, end: e };
       } else {
-          // All Time
           start.setFullYear(2000, 0, 1);
           end.setFullYear(2100, 11, 31);
       }
@@ -151,7 +147,6 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
     let data = [];
     const now = new Date();
 
-    // Helper
     function calculatePeriodData(name: string, start: Date, end: Date) {
         let revenue = 0;
         let expense = 0;
@@ -198,11 +193,12 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
             d.setDate(now.getDate() - i);
             const start = new Date(d.setHours(0,0,0,0));
             const end = new Date(d.setHours(23,59,59,999));
-            const label = i === 0 ? 'Auj.' : d.toLocaleDateString('fr-FR', { weekday: 'short' });
+            const dayName = d.toLocaleDateString('fr-FR', { weekday: 'short' });
+            const dayNum = d.getDate();
+            const label = i === 0 ? 'Auj.' : `${dayName} ${dayNum}`;
             data.push(calculatePeriodData(label, start, end));
         }
     }
-    // 👇 LOGIQUE GRAPHIQUE POUR CUSTOM
     else if (timeRange === 'custom') {
         const start = new Date(customRange.start);
         const end = new Date(customRange.end);
@@ -210,7 +206,6 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
         if (diffDays <= 31) {
-            // Affichage par jour si période courte
             for (let i = 0; i <= diffDays; i++) {
                 const d = new Date(start);
                 d.setDate(d.getDate() + i);
@@ -219,9 +214,8 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
                 data.push(calculatePeriodData(`${d.getDate()}/${d.getMonth()+1}`, s, e));
             }
         } else {
-            // Affichage par mois si période longue
             let d = new Date(start);
-            d.setDate(1); // Début du mois
+            d.setDate(1);
             while (d <= end) {
                 const s = new Date(d.getFullYear(), d.getMonth(), 1);
                 const e = new Date(d.getFullYear(), d.getMonth() + 1, 0);
@@ -333,7 +327,7 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
         </div>
       </div>
 
-      {/* 👇 SÉLECTEUR DE DATE CUSTOM (Apparaît seulement si 'Perso' est actif) */}
+      {/* SÉLECTEUR DE DATE CUSTOM */}
       {timeRange === 'custom' && (
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-wrap items-center gap-4 animate-in slide-in-from-top-2">
               <span className="text-sm font-bold text-slate-500 uppercase flex items-center gap-2">
@@ -433,9 +427,10 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
                           <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} dy={10} />
                           <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} />
                           <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} formatter={(value: number) => formatPrice(value, user.currency)} />
-                          <Bar dataKey="revenue" barSize={30} fill="#10b981" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="expense" barSize={30} fill="#ef4444" radius={[4, 4, 0, 0]} />
-                          <Line type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={3} dot={{r: 4}} />
+                          {/* 👇 MODIFICATION ICI : name="Revenus", etc. */}
+                          <Bar dataKey="revenue" name="Revenus" barSize={30} fill="#10b981" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="expense" name="Dépenses" barSize={30} fill="#ef4444" radius={[4, 4, 0, 0]} />
+                          <Line type="monotone" dataKey="profit" name="Bénéfice Net" stroke="#3b82f6" strokeWidth={3} dot={{r: 4}} />
                       </ComposedChart>
                   ) : (
                       <AreaChart data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
@@ -453,8 +448,9 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
                           <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
                           <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} />
                           <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} formatter={(value: number) => formatPrice(value, user.currency)} />
-                          <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
-                          <Area type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} />
+                          {/* 👇 MODIFICATION ICI AUSSI */}
+                          <Area type="monotone" dataKey="revenue" name="Revenus" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                          <Area type="monotone" dataKey="profit" name="Bénéfice Net" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} />
                       </AreaChart>
                   )}
               </ResponsiveContainer>
