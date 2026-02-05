@@ -9,6 +9,7 @@ import Auth from './components/Auth';
 import LandingPage from './components/LandingPage';
 import Pricing from './components/Pricing';
 import Settings from './components/Settings';
+import Revenue from './components/Revenue';
 import { AppRoute, Invoice, User, UserPlan, Expense } from './types'; // 👇 AJOUT Expense
 import { supabase } from './services/supabaseClient';
 import { 
@@ -231,7 +232,9 @@ const App: React.FC = () => {
       case AppRoute.DASHBOARD:
         // 👇 On passe les expenses au dashboard
         return <Dashboard invoices={invoices} expenses={expenses} user={user} onNavigate={(route) => handleNavigate(route as AppRoute)} />;
-      case AppRoute.INVOICES:
+      case AppRoute.REVENUE:
+        return <Revenue invoices={invoices} expenses={expenses} user={user} />;
+        case AppRoute.INVOICES:
         return <InvoiceList invoices={invoices} user={user} onDelete={handleDeleteInvoice} onEdit={handleEditInvoice} />;
       case AppRoute.CREATE_INVOICE:
         return (
@@ -258,6 +261,7 @@ const App: React.FC = () => {
         return <Pricing user={user} onUpgrade={handleUpgrade} onDowngrade={handleDowngrade} />;
       default:
         return <div>Introuvable</div>;
+        
     }
   };
 

@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Building2,
   Infinity,
+  BarChart3,
   PlusCircle,
   TrendingDown // 👈 AJOUT ICI
 } from 'lucide-react';
@@ -37,6 +38,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   
   const navItems = [
     { id: AppRoute.DASHBOARD, label: 'Tableau de bord', icon: LayoutDashboard },
+    { id: AppRoute.REVENUE, label: 'Analyse Financière', icon: BarChart3 },
     { id: AppRoute.INVOICES, label: 'Mes factures', icon: FileText },
     // 👇 NOUVEL ITEM : DÉPENSES
     { id: AppRoute.EXPENSES, label: 'Dépenses', icon: TrendingDown },

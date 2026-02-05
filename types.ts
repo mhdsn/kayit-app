@@ -49,6 +49,7 @@ export interface AuthState {
 
 export enum AppRoute {
   DASHBOARD = 'dashboard',
+  REVENUE = 'revenue',
   INVOICES = 'invoices',
   EXPENSES = 'expenses',
   CREATE_INVOICE = 'create-invoice',
