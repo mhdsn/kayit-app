@@ -101,21 +101,42 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
       return Array.from(dataMap.entries()).map(([name, value]) => ({ name, value }));
   }, [filteredExpenses]);
 
+  // Export CSV (Corrigé pour Excel)
   const handleExport = () => {
-      const headers = ['Date', 'Description', 'Catégorie', 'Montant'];
-      const rows = filteredExpenses.map(e => [
-          e.date,
-          `"${e.description}"`, 
-          e.category,
-          e.amount
-      ]);
-      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-      const encodedUri = encodeURI(csvContent);
+      // 1. On utilise le point-virgule (;) pour qu'Excel sépare bien les colonnes en Français
+      const separator = ';';
+      const headers = ['Date', 'Description', 'Catégorie', 'Prix Unitaire', 'Quantité', 'Total'];
+      
+      const rows = filteredExpenses.map(e => {
+          // On extrait la quantité et le prix unitaire si on les a stockés dans la description (facultatif mais plus propre)
+          // Ici on prend les données brutes
+          return [
+            e.date,
+            `"${e.description}"`, // Guillemets pour protéger le texte
+            e.category,
+            // Pour Excel français, on peut vouloir remplacer le point par une virgule pour les chiffres, 
+            // mais gardons le standard pour l'instant.
+            e.amount / (e.description.match(/\(x(\d+)\)/)?.[1] ? parseInt(e.description.match(/\(x(\d+)\)/)![1]) : 1), // Prix unitaire estimé
+            e.description.match(/\(x(\d+)\)/)?.[1] || 1, // Quantité extraite
+            e.amount
+          ];
+      });
+
+      const csvContent = [
+          headers.join(separator), 
+          ...rows.map(r => r.join(separator))
+      ].join('\n');
+
+      // 2. AJOUT DU BOM (\uFEFF) : C'est la clé magique pour qu'Excel lise les accents correctement
+      const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+      
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
       link.setAttribute("download", `depenses_${timeFilter}_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
   };
 
   return (
