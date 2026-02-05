@@ -179,7 +179,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
           <div className="lg:col-span-2 bg-white rounded-2xl shadow-card border border-slate-200 overflow-hidden flex flex-col">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                    <DollarSign className="w-5 h-5 text-slate-400" /> Historique
+                     Historique
                 </h3>
                 
                 {/* Petit filtre rapide */}
