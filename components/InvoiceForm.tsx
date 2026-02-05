@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Invoice, InvoiceItem, User, formatPrice } from '../types';
+import { Invoice, InvoiceItem, User, formatPrice, Client } from '../types'; // Ajout de Client
 import { Plus, Trash2, Save, ArrowLeft, Lock, Mail, User as UserIcon, Eye, X, Download, FileText, ChevronDown, Wallet, AlignLeft, Sparkles, MapPin, CheckCircle2, Clock } from 'lucide-react';
 import { getInvoicePdfBlobUrl, generateInvoicePDF } from '../services/pdfService';
 import { supabase } from '../services/supabaseClient'; 
+import { getClients, upsertClient } from '../services/clientService'; // Ajout des services Client
 
 interface InvoiceFormProps {
   onSave: (invoice: Invoice) => void;
@@ -21,7 +22,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
   const [currentMonthCount, setCurrentMonthCount] = useState(0);
   const [number, setNumber] = useState(initialData?.number || 'Chargement...');
 
+  // 👇 NOUVEAU : État pour les clients sauvegardés
+  const [savedClients, setSavedClients] = useState<Client[]>([]);
+
   useEffect(() => {
+    // 👇 NOUVEAU : On charge les clients au démarrage
+    const loadClients = async () => {
+        const clients = await getClients();
+        setSavedClients(clients);
+    };
+    loadClients();
+
     if (isEditing) return; 
 
     // 1. Vérification des limites
@@ -89,7 +100,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
   const [status, setStatus] = useState<Invoice['status']>(initialData?.status || 'pending');
   const [paymentMethod, setPaymentMethod] = useState(initialData?.paymentMethod || ''); 
   
-  // 👇 MODIFICATION : On utilise la note par défaut si pas de donnée initiale
+  // 👇 NOUVEAU : On utilise user.defaultNote si aucune note n'est fournie (création)
   const [notes, setNotes] = useState(initialData?.notes || user.defaultNote || '');
   
   const [currency, setCurrency] = useState(initialData?.currency || user.currency || 'XOF');
@@ -98,7 +109,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
     { id: crypto.randomUUID(), description: '', quantity: 1, price: 0 }
   ]);
 
-  // Preview State
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>('');
 
@@ -109,6 +119,19 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
       }
     };
   }, [previewUrl]);
+
+  // 👇 NOUVEAU : Gestion intelligente du changement de nom client
+  const handleClientNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newName = e.target.value;
+      setClientName(newName);
+
+      // Autocomplétion si le client existe déjà
+      const existingClient = savedClients.find(c => c.name.toLowerCase() === newName.toLowerCase());
+      if (existingClient) {
+          if (!clientEmail) setClientEmail(existingClient.email || '');
+          if (!clientAddress) setClientAddress(existingClient.address || '');
+      }
+  };
 
   // --- FONCTIONS ITEMS ---
   const addItem = () => {
@@ -142,7 +165,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
       clientEmail,
       clientAddress,
       date,
-      // 👇 Si la case est cochée on met la date, sinon undefined
       dueDate: showDueDate ? dueDate : undefined,
       items,
       total: calculateTotal(),
@@ -165,8 +187,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
      generateInvoicePDF(tempInvoice, user);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 👇 NOUVEAU : Sauvegarde automatique du client si le nom est rempli
+    if (clientName.trim()) {
+        await upsertClient({
+            name: clientName,
+            email: clientEmail,
+            address: clientAddress
+        });
+    }
+
     onSave(constructInvoiceData());
   };
 
@@ -263,11 +295,25 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                                 <UserIcon className="w-3 h-3" /> Informations Client
                             </h3>
-                            <input
-                                required type="text" placeholder="Nom du client / Entreprise"
-                                value={clientName} onChange={(e) => setClientName(e.target.value)}
-                                className="w-full pl-4 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 outline-none font-medium text-slate-900 placeholder:text-slate-400"
-                            />
+                            
+                            {/* 👇 NOUVEAU : Input avec Datalist pour autocomplétion */}
+                            <div>
+                                <input
+                                    required 
+                                    list="clients-list"
+                                    type="text" 
+                                    placeholder="Nom du client / Entreprise"
+                                    value={clientName} 
+                                    onChange={handleClientNameChange}
+                                    className="w-full pl-4 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 outline-none font-medium text-slate-900 placeholder:text-slate-400"
+                                />
+                                <datalist id="clients-list">
+                                    {savedClients.map((client, index) => (
+                                        <option key={index} value={client.name} />
+                                    ))}
+                                </datalist>
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="relative">
                                     <Mail className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
@@ -295,7 +341,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
                                     <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none" />
                                 </div>
 
-                                {/* 👇 GESTION DE L'ÉCHÉANCE OPTIONNELLE */}
+                                {/* Gestion Échéance */}
                                 <div>
                                     <div className="flex items-center justify-between mb-1">
                                         <label className="text-xs font-semibold text-slate-500 block">Échéance</label>

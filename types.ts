@@ -78,3 +78,12 @@ export const formatPrice = (amount: number, currencyCode: string = 'XOF') => {
     return amount + ' ' + currencyCode;
   }
 };
+// ... (Garde tes interfaces InvoiceItem, Invoice existantes)
+
+export interface Client {
+  id?: string; // Optionnel car généré par la DB
+  name: string;
+  email?: string;
+  address?: string;
+  phone?: string;
+}
