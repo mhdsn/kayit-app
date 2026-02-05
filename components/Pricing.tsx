@@ -88,7 +88,7 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
         <div className="mb-8">
             <div className="flex items-baseline gap-1">
                 <span className="text-4xl font-bold tracking-tighter">
-                    {planId === 'starter' ? 'Gratuit' : formatPrice(price, 'USD')}
+                    {planId === 'starter' ? 'Gratuit' : formatPrice(price, 'USD').replace('USD', '$')}
                 </span>
                 {planId !== 'starter' && (
                     <span className={`text-sm font-medium ${planId === 'business' ? 'text-slate-500' : 'text-slate-400'}`}>/mois</span>
@@ -110,7 +110,7 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
                         <span className={`text-sm leading-tight ${
                             feature.included 
                                 ? (planId === 'business' ? 'text-slate-200' : 'text-slate-700')
-                                : (planId === 'business' ? 'text-slate-600' : 'text-slate-400')
+                                : (planId === 'business' ? 'text-slate-600 line-through decoration-slate-600' : 'text-slate-400 line-through decoration-slate-300')
                         }`}>
                             {feature.text}
                         </span>
@@ -161,9 +161,9 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
                 { text: "10 factures / mois", included: true },
                 { text: "Génération PDF standard", included: true },
                 { text: "Numérotation automatique", included: true },
-                { text: "Historique limité (30 jours)", included: false },
-                { text: "Pas de logo Kayit (Filigrane)", included: false },
-                { text: "Modification / Suppression", included: false },
+                { text: "Historique illimité", included: false },
+                { text: "PDF sans logo Kayit", included: false },
+                { text: "Modification & Suppression", included: false },
                 { text: "Logo personnalisé", included: false },
             ]}
         />
@@ -193,7 +193,7 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
         <PlanCard 
             planId="business"
             title="Business"
-            price={24.99}
+            price={25}
             description="Pour les petits business structurés."
             icon={Crown}
             colorClass="text-violet-400"
