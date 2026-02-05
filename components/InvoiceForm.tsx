@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Invoice, InvoiceItem, User, formatPrice } from '../types';
-import { Plus, Trash2, Save, ArrowLeft, Lock, Calendar, Hash, MapPin, Mail, User as UserIcon, Eye, X, Download, FileText, ChevronDown, CheckCircle2, Clock, File, Wallet, AlignLeft, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Save, ArrowLeft, Lock, Mail, User as UserIcon, Eye, X, Download, FileText, ChevronDown, Wallet, AlignLeft, Sparkles, MapPin, CheckCircle2, Clock } from 'lucide-react';
 import { getInvoicePdfBlobUrl, generateInvoicePDF } from '../services/pdfService';
 import { supabase } from '../services/supabaseClient'; 
 
@@ -83,14 +83,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
   const [clientAddress, setClientAddress] = useState(initialData?.clientAddress || '');
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
   
-  // 👇 ICI LA LOGIQUE OPTIONNELLE
-  // On active par défaut si on édite et qu'il y a déjà une date, sinon désactivé par défaut
   const [showDueDate, setShowDueDate] = useState(!!initialData?.dueDate); 
   const [dueDate, setDueDate] = useState(initialData?.dueDate || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]); 
   
   const [status, setStatus] = useState<Invoice['status']>(initialData?.status || 'pending');
   const [paymentMethod, setPaymentMethod] = useState(initialData?.paymentMethod || ''); 
-  const [notes, setNotes] = useState(initialData?.notes || '');
+  
+  // 👇 MODIFICATION : On utilise la note par défaut si pas de donnée initiale
+  const [notes, setNotes] = useState(initialData?.notes || user.defaultNote || '');
+  
   const [currency, setCurrency] = useState(initialData?.currency || user.currency || 'XOF');
   
   const [items, setItems] = useState<InvoiceItem[]>(initialData?.items || [
@@ -429,8 +430,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
             </div>
         </div>
       </div>
-
-      {/* Preview Modal */}
       {isPreviewOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">

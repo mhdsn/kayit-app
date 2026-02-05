@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, CURRENCIES } from '../types';
-import { Save, User as UserIcon, Building, Mail, Phone, MapPin, Globe, Image as ImageIcon, Palette, Lock, Crown, Upload, Trash2, AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Save, User as UserIcon, Building, Mail, Phone, MapPin, Globe, Image as ImageIcon, Palette, Lock, Crown, Upload, Trash2, AlertCircle, AlertTriangle, CheckCircle2, AlignLeft } from 'lucide-react';
 
 interface SettingsProps {
   user: User;
@@ -31,6 +31,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
         normalize(formData.address) !== normalize(user.address) ||
         normalize(formData.currency) !== normalize(user.currency || 'XOF') ||
         normalize(formData.brandColor) !== normalize(user.brandColor || '#2563EB') ||
+        normalize(formData.defaultNote) !== normalize(user.defaultNote) || // 👈 CHECK NOTE
         formData.logo !== user.logo;
 
     setIsDirty(hasChanges);
@@ -172,7 +173,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
                         <button type="button" disabled={!isBusiness} onClick={() => fileInputRef.current?.click()} className="flex items-center px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm mb-2 disabled:opacity-50 disabled:cursor-not-allowed">
                             <Upload className="w-4 h-4 mr-2" /> Importer une image
                         </button>
-                        <p className="text-[10px] text-slate-400 leading-tight">Format PNG ou JPG. Fond transparent recommandé.<br/>Max 500 Ko.</p>
+                        <p className="text-[10px] text-slate-400 leading-tight">Format PNG/JPG. Max 500 Ko.</p>
                         {logoError && <div className="flex items-center mt-2 text-[10px] text-red-600 font-medium animate-in fade-in slide-in-from-top-1"><AlertCircle className="w-3 h-3 mr-1" />{logoError}</div>}
                     </div>
                 </div>
@@ -183,7 +184,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
                 <div className="flex items-center gap-3">
                     <div className="relative w-full">
                         <Palette className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                        <input type="text" name="brandColor" disabled={!isBusiness} placeholder="#2563EB" value={formData.brandColor || '#2563EB'} onChange={handleChange} className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all font-mono uppercase disabled:bg-slate-50 disabled:text-slate-400" />
+                        <input type="text" name="brandColor" disabled={!isBusiness} placeholder="#2563EB" value={formData.brandColor || '#2563EB'} onChange={handleChange} className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none uppercase disabled:bg-slate-50 disabled:text-slate-400" />
                     </div>
                     <input type="color" name="brandColor" disabled={!isBusiness} value={formData.brandColor || '#2563EB'} onChange={handleChange} className="h-11 w-11 rounded-xl cursor-pointer border-0 p-0 overflow-hidden shrink-0 disabled:cursor-not-allowed disabled:opacity-50" />
                 </div>
@@ -197,15 +198,31 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
           <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
             <h3 className="font-bold text-slate-900 flex items-center gap-2"><Globe className="w-4 h-4 text-brand-600" /> Préférences de l'application</h3>
           </div>
-          <div className="p-6">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Devise par défaut</label>
-            <div className="relative">
-              <select name="currency" value={formData.currency || 'XOF'} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all appearance-none text-slate-900 cursor-pointer">
-                {CURRENCIES.map(curr => (<option key={curr.code} value={curr.code}>{curr.label} ({curr.code})</option>))}
-              </select>
-              <div className="absolute right-4 top-3 pointer-events-none text-slate-500"><Globe className="w-4 h-4" /></div>
+          <div className="p-6 grid gap-6 md:grid-cols-2">
+            <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Devise par défaut</label>
+                <div className="relative">
+                <select name="currency" value={formData.currency || 'XOF'} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all appearance-none text-slate-900 cursor-pointer">
+                    {CURRENCIES.map(curr => (<option key={curr.code} value={curr.code}>{curr.label} ({curr.code})</option>))}
+                </select>
+                <div className="absolute right-4 top-3 pointer-events-none text-slate-500"><Globe className="w-4 h-4" /></div>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">Cette devise sera utilisée pour toutes vos factures et les statistiques.</p>
             </div>
-            <p className="text-xs text-slate-500 mt-2">Cette devise sera utilisée pour toutes vos factures et les statistiques du tableau de bord.</p>
+            {/* 👇 AJOUT : Note par défaut */}
+            <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                    <AlignLeft className="w-4 h-4" /> Note par défaut (Pied de page)
+                </label>
+                <textarea 
+                    name="defaultNote"
+                    value={formData.defaultNote || ''}
+                    onChange={handleChange}
+                    rows={3}
+                    placeholder="Ex: Merci pour votre confiance. Paiement dû sous 30 jours."
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all resize-none text-slate-900 text-sm"
+                />
+            </div>
           </div>
         </div>
 

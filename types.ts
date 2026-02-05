@@ -37,6 +37,7 @@ export interface User {
   currency: string;
   logo?: string; 
   brandColor?: string; 
+  defaultNote?: string; // 👈 AJOUT : Note par défaut
 }
 
 // --- 2. Utilitaires (On garde ton code existant !) ---

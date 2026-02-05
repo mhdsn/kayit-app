@@ -45,7 +45,8 @@ const App: React.FC = () => {
             currency: meta.currency || 'XOF',
             logo: meta.logo || undefined,
             brandColor: meta.brandColor || undefined,
-            address: meta.address || ''
+            address: meta.address || '',
+            defaultNote: meta.default_note || '' // 👈 AJOUT : Chargement de la note
         };
     };
 
@@ -136,7 +137,8 @@ const App: React.FC = () => {
                   currency: u.currency, 
                   logo: u.logo, 
                   brandColor: u.brandColor,
-                  address: u.address
+                  address: u.address,
+                  default_note: u.defaultNote // 👈 AJOUT : Sauvegarde de la note
               } 
           }); 
           showNotification("Profil sauvegardé !", 'success'); 
