@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Expense, User, formatPrice } from '../types';
-import { Plus, Trash2, Calendar, Tag, DollarSign, TrendingDown, Filter } from 'lucide-react';
+import { Plus, Trash2, Calendar, Tag, TrendingDown } from 'lucide-react';
 
 interface ExpensesProps {
   expenses: Expense[];
@@ -67,13 +67,17 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Description</label>
-              <input type="text" required placeholder="Ex: Hébergement Web" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-red-500" />
+              {/* 👇 MODIFIÉ : Placeholder retiré */}
+              <input type="text" required placeholder="" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-red-500" />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Montant</label>
               <div className="relative">
-                  <input type="number" required min="0" placeholder="0" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-red-500" />
-                  <DollarSign className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
+                  {/* 👇 MODIFIÉ : pl-12 pour laisser la place au texte de la devise, affichage dynamique de user.currency */}
+                  <input type="number" required min="0" placeholder="0" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} className="w-full pl-12 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-red-500" />
+                  <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400 pointer-events-none">
+                      {user.currency}
+                  </span>
               </div>
             </div>
             <div>
