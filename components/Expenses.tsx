@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Expense, User, formatPrice } from '../types';
-import { Plus, Trash2, Calendar, Tag, TrendingDown, Download, Filter, PieChart as PieChartIcon, ArrowUpRight, DollarSign } from 'lucide-react';
+import { Plus, Trash2, Calendar, Tag, TrendingDown, Download, Filter, PieChart as PieChartIcon, ArrowUpRight, DollarSign, Clock } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
 interface ExpensesProps {
@@ -13,9 +13,15 @@ interface ExpensesProps {
 const CATEGORIES = ['Loyer', 'Salaire', 'Marketing', 'Matériel', 'Logiciel', 'Transport', 'Services', 'Autre'];
 const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#94a3b8'];
 
+type TimeFilter = 'day' | 'month' | 'year' | 'all';
+
 const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) => {
   const [showForm, setShowForm] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('All');
+  
+  // 👇 NOUVEAU : État pour le filtre temporel (Défaut : 'month' pour voir le mois en cours)
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('month');
+
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
@@ -38,12 +44,40 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
     setShowForm(false);
   };
 
-  // --- CALCULS & STATS ---
+  // --- 🔥 LOGIQUE DE FILTRAGE COMBINÉE (Catégorie + Temps) ---
   const filteredExpenses = useMemo(() => {
-      if (filterCategory === 'All') return expenses;
-      return expenses.filter(e => e.category === filterCategory);
-  }, [expenses, filterCategory]);
+      let data = expenses;
 
+      // 1. Filtre par Catégorie
+      if (filterCategory !== 'All') {
+          data = data.filter(e => e.category === filterCategory);
+      }
+
+      // 2. Filtre par Temps
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+      const todayStr = now.toISOString().split('T')[0];
+
+      if (timeFilter === 'day') {
+          data = data.filter(e => e.date === todayStr);
+      } else if (timeFilter === 'month') {
+          data = data.filter(e => {
+              const d = new Date(e.date);
+              return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+          });
+      } else if (timeFilter === 'year') {
+          data = data.filter(e => {
+              const d = new Date(e.date);
+              return d.getFullYear() === currentYear;
+          });
+      }
+      // 'all' : on ne filtre pas la date
+
+      return data;
+  }, [expenses, filterCategory, timeFilter]);
+
+  // --- STATS (Basées sur les données filtrées) ---
   const stats = useMemo(() => {
       const total = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
       const count = filteredExpenses.length;
@@ -52,21 +86,21 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
       return { total, count, average, max };
   }, [filteredExpenses]);
 
-  // Données pour le graph
+  // --- GRAPHIQUE (Basé sur les données filtrées) ---
   const chartData = useMemo(() => {
       const dataMap = new Map<string, number>();
-      expenses.forEach(e => {
+      filteredExpenses.forEach(e => {
           dataMap.set(e.category, (dataMap.get(e.category) || 0) + e.amount);
       });
       return Array.from(dataMap.entries()).map(([name, value]) => ({ name, value }));
-  }, [expenses]);
+  }, [filteredExpenses]);
 
-  // Export CSV
+  // Export CSV (Basé sur les données filtrées)
   const handleExport = () => {
       const headers = ['Date', 'Description', 'Catégorie', 'Montant'];
-      const rows = expenses.map(e => [
+      const rows = filteredExpenses.map(e => [
           e.date,
-          `"${e.description}"`, // Guillemets pour éviter les bugs si virgules
+          `"${e.description}"`, 
           e.category,
           e.amount
       ]);
@@ -74,7 +108,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `depenses_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute("download", `depenses_${timeFilter}_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
   };
@@ -82,23 +116,57 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
   return (
     <div className="space-y-8 pb-20">
       
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-900 font-display">Dépenses</h2>
-          <p className="text-slate-500 mt-1">Suivez vos coûts pour calculer vos bénéfices réels.</p>
+      {/* Header & Actions */}
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h2 className="text-3xl font-bold text-slate-900 font-display">Dépenses</h2>
+                <p className="text-slate-500 mt-1">Gérez vos coûts et analysez vos sorties d'argent.</p>
+            </div>
+            <div className="flex gap-3">
+                <button onClick={handleExport} className="hidden md:flex items-center justify-center px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-all">
+                    <Download className="w-4 h-4 mr-2" /> Export
+                </button>
+                <button onClick={() => setShowForm(!showForm)} className="flex items-center justify-center px-6 py-2.5 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 shadow-lg shadow-slate-900/20 transition-all">
+                    <Plus className="w-5 h-5 mr-2" /> Ajouter
+                </button>
+            </div>
         </div>
-        <div className="flex gap-3">
-            <button onClick={handleExport} className="hidden md:flex items-center justify-center px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-all">
-                <Download className="w-4 h-4 mr-2" /> Export CSV
-            </button>
-            <button onClick={() => setShowForm(!showForm)} className="flex items-center justify-center px-6 py-2.5 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 shadow-lg shadow-slate-900/20 transition-all">
-                <Plus className="w-5 h-5 mr-2" /> Ajouter une dépense
-            </button>
+
+        {/* 👇 BARRE DE FILTRES TEMPORELS */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50 p-2 rounded-2xl border border-slate-100">
+            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
+                {(['day', 'month', 'year', 'all'] as const).map((period) => (
+                    <button
+                        key={period}
+                        onClick={() => setTimeFilter(period)}
+                        className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all ${
+                            timeFilter === period
+                            ? 'bg-slate-900 text-white shadow-md'
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                        }`}
+                    >
+                        {period === 'day' ? 'Auj.' : period === 'month' ? 'Ce mois' : period === 'year' ? 'Cette année' : 'Toujours'}
+                    </button>
+                ))}
+            </div>
+            
+            {/* Résumé textuel de la période */}
+            <div className="px-2 text-sm text-slate-500 flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                {timeFilter === 'all' 
+                    ? "Historique complet" 
+                    : timeFilter === 'day' 
+                    ? "Dépenses d'aujourd'hui" 
+                    : timeFilter === 'month' 
+                    ? `Dépenses de ${new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}` 
+                    : `Année ${new Date().getFullYear()}`
+                }
+            </div>
         </div>
       </div>
 
-      {/* 1. KPIs Cards */}
+      {/* KPIs Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 flex flex-col justify-between h-32 relative overflow-hidden group">
               <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><TrendingDown className="w-16 h-16 text-red-600" /></div>
@@ -114,7 +182,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
               <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">Plus grosse dépense</p>
               <div>
                   <h3 className="text-3xl font-bold text-slate-900">{formatPrice(stats.max, user.currency)}</h3>
-                  <p className="text-xs text-orange-500 mt-1 font-medium">Attention aux gros montants</p>
+                  <p className="text-xs text-orange-500 mt-1 font-medium">Record sur la période</p>
               </div>
           </div>
 
@@ -123,7 +191,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
               <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">Panier Moyen</p>
               <div>
                   <h3 className="text-3xl font-bold text-slate-900">{formatPrice(stats.average, user.currency)}</h3>
-                  <p className="text-xs text-blue-500 mt-1 font-medium">Moyenne par transaction</p>
+                  <p className="text-xs text-blue-500 mt-1 font-medium">Par dépense</p>
               </div>
           </div>
       </div>
@@ -139,7 +207,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="lg:col-span-2">
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Description</label>
-              <input type="text" required autoFocus placeholder="Ex: Achat fournitures bureau" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all" />
+              <input type="text" required autoFocus placeholder="" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all" />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Montant</label>
@@ -175,14 +243,13 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* 2. Liste des dépenses */}
+          {/* Liste des dépenses */}
           <div className="lg:col-span-2 bg-white rounded-2xl shadow-card border border-slate-200 overflow-hidden flex flex-col">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                     Historique
+                    <DollarSign className="w-5 h-5 text-slate-400" /> Historique
                 </h3>
                 
-                {/* Petit filtre rapide */}
                 <div className="flex items-center gap-2">
                     <Filter className="w-4 h-4 text-slate-400" />
                     <select 
@@ -202,7 +269,10 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
                         <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
                             <TrendingDown className="w-8 h-8 text-slate-300" />
                         </div>
-                        <p className="text-slate-500">Aucune dépense trouvée.</p>
+                        <p className="text-slate-500">Aucune dépense sur cette période.</p>
+                        {timeFilter !== 'all' && (
+                            <button onClick={() => setTimeFilter('all')} className="mt-2 text-sm text-red-600 hover:underline">Voir tout l'historique</button>
+                        )}
                     </div>
                 ) : (
                     <table className="w-full text-left text-sm">
@@ -239,14 +309,14 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
             </div>
           </div>
 
-          {/* 3. Graphique de Répartition */}
+          {/* Graphique de Répartition */}
           <div className="bg-white rounded-2xl shadow-card border border-slate-200 p-6 flex flex-col">
               <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
                   <PieChartIcon className="w-5 h-5 text-slate-400" /> Répartition
               </h3>
               
               <div className="flex-1 min-h-[300px] relative">
-                  {expenses.length > 0 ? (
+                  {chartData.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                             <Pie
