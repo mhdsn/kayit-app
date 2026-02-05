@@ -44,7 +44,7 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
 
   const formatMoney = (amount: number) => formatPrice(amount, user.currency);
 
-  // --- KPI GLOBAUX (Pour tous) ---
+  // --- KPI GLOBAUX (Pour tous - restent inchangés) ---
   const globalStats = useMemo(() => {
     const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.total, 0);
     const pendingAmount = invoices.filter(i => i.status === 'pending').reduce((sum, i) => sum + i.total, 0);
@@ -52,39 +52,73 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
     return { totalRevenue, pendingAmount, activeClients };
   }, [invoices]);
 
-  // --- DONNÉES DU GRAPHIQUE (Business Only) ---
+  // --- 🔥 1. FILTRAGE CENTRALISÉ (Nouveau) ---
+  // On crée une liste filtrée qui servira à la fois pour le Graphique et pour le Top Clients
+  const filteredPaidInvoices = useMemo(() => {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+      const todayStr = now.toISOString().split('T')[0];
+
+      return invoices.filter(inv => {
+          if (inv.status !== 'paid') return false; // Uniquement payées
+
+          const d = new Date(inv.date);
+          const dateStr = inv.date; 
+
+          if (period === 'day') return dateStr === todayStr;
+          if (period === 'month') return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+          if (period === 'year') return d.getFullYear() === currentYear;
+          if (period === 'custom') return dateStr >= customRange.start && dateStr <= customRange.end;
+          
+          return false;
+      });
+  }, [invoices, period, customRange]);
+
+  // --- DONNÉES DU GRAPHIQUE ---
   const chartData = useMemo(() => {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
-    const todayStr = now.toISOString().split('T')[0];
 
-    let data: { name: string; amount: number; fullDate: string }[] = [];
-    const paidInvoices = invoices.filter(i => i.status === 'paid');
+    let data: { name: string; amount: number; fullDate?: string }[] = [];
 
     if (period === 'day') {
-       // Pour "Ce jour", on affiche simplement un point unique pour l'instant (ou heure par heure si on avait l'info)
-       const amount = paidInvoices
-        .filter(i => i.date === todayStr)
-        .reduce((sum, i) => sum + i.total, 0);
-       data = [{ name: 'Aujourd\'hui', amount, fullDate: todayStr }];
+       // 🔥 CORRECTION "CE JOUR" : On affiche chaque facture pour créer une courbe
+       if (filteredPaidInvoices.length === 0) return [];
+
+       // On ajoute un point de départ à 0 pour que le graphique soit joli
+       data.push({ name: 'Début', amount: 0 });
+
+       let runningTotal = 0;
+       // On trie par date de création (si dispo) ou on les affiche dans l'ordre
+       filteredPaidInvoices.forEach((inv, index) => {
+           // Si on veut afficher le cumul : runningTotal += inv.total;
+           // Si on veut afficher le montant par facture (plus logique pour une analyse de flux) :
+           data.push({ 
+               name: inv.clientName.length > 10 ? inv.clientName.substring(0, 8) + '..' : inv.clientName, 
+               amount: inv.total,
+               fullDate: inv.date 
+           });
+       });
     } 
     else if (period === 'month') {
-        // Vue par JOUR du mois (1..31)
+        // (Code existant inchangé pour le mois)
         const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const amount = paidInvoices
+            const amount = filteredPaidInvoices // On utilise la liste filtrée pour optimiser
                 .filter(i => i.date === dateStr)
                 .reduce((sum, i) => sum + i.total, 0);
             data.push({ name: String(d), amount, fullDate: dateStr });
         }
     } 
     else if (period === 'year') {
-        // Vue par MOIS de l'année (Jan..Déc)
+        // (Code existant inchangé pour l'année)
         const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
         data = months.map((m, index) => {
-            const amount = paidInvoices
+            const amount = invoices // On reprend invoices global car filteredPaidInvoices est filtré par année courante, ok
+                .filter(i => i.status === 'paid')
                 .filter(i => {
                     const d = new Date(i.date);
                     return d.getFullYear() === currentYear && d.getMonth() === index;
@@ -94,48 +128,40 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
         });
     } 
     else if (period === 'custom') {
-        // Vue par JOUR sur la période perso
-        const start = new Date(customRange.start);
-        const end = new Date(customRange.end);
-        
-        // Sécurité pour éviter boucle infinie si dates invalides
-        if (start <= end) {
-            for(let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                const dateStr = d.toISOString().split('T')[0];
-                const amount = paidInvoices
-                    .filter(i => i.date === dateStr)
-                    .reduce((sum, i) => sum + i.total, 0);
-                data.push({ 
-                    name: d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }), 
-                    amount, 
-                    fullDate: dateStr 
-                });
-            }
-        }
+        // Pour custom, on groupe par jour existant
+        const grouped = new Map<string, number>();
+        filteredPaidInvoices.forEach(inv => {
+             // Clé simple pour l'affichage
+             const key = new Date(inv.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+             grouped.set(key, (grouped.get(key) || 0) + inv.total);
+        });
+        data = Array.from(grouped.entries()).map(([name, amount]) => ({ name, amount }));
     }
 
     return data;
-  }, [invoices, period, customRange]);
+  }, [invoices, filteredPaidInvoices, period, customRange]);
 
   // Total sur la période sélectionnée
-  const periodTotal = useMemo(() => chartData.reduce((acc, item) => acc + item.amount, 0), [chartData]);
+  const periodTotal = useMemo(() => filteredPaidInvoices.reduce((sum, i) => sum + i.total, 0), [filteredPaidInvoices]);
 
-  // --- TOP CLIENTS DÉTAILLÉ ---
+  // --- 🔥 2. TOP CLIENTS CORRIGÉ (Basé sur la période) ---
   const topClients = useMemo(() => {
-    const clientMap = new Map<string, { count: number; total: number; lastDate: string }>();
-    invoices.filter(i => i.status === 'paid').forEach(inv => {
-        const current = clientMap.get(inv.clientName) || { count: 0, total: 0, lastDate: inv.date };
+    const clientMap = new Map<string, { count: number; total: number }>();
+    
+    // On itère sur filteredPaidInvoices au lieu de toutes les factures !
+    filteredPaidInvoices.forEach(inv => {
+        const current = clientMap.get(inv.clientName) || { count: 0, total: 0 };
         clientMap.set(inv.clientName, {
             count: current.count + 1,
-            total: current.total + inv.total,
-            lastDate: inv.date > current.lastDate ? inv.date : current.lastDate
+            total: current.total + inv.total
         });
     });
+
     return Array.from(clientMap.entries())
         .map(([name, data]) => ({ name, ...data }))
         .sort((a, b) => b.total - a.total)
         .slice(0, 5); // Top 5
-  }, [invoices]);
+  }, [filteredPaidInvoices]);
 
   return (
     <div className="space-y-8 pb-12">
@@ -261,7 +287,7 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
                                     tickLine={false} 
                                     tick={{fill: '#94a3b8', fontSize: 11}} 
                                     dy={10}
-                                    interval={period === 'month' ? 2 : 0} // Pour éviter de surcharger l'axe
+                                    interval={period === 'month' ? 2 : 0} 
                                 />
                                 <YAxis 
                                     axisLine={false} 
@@ -302,7 +328,7 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
                         <Users className="w-5 h-5 text-purple-600" />
                         Top Clients
                     </h4>
-                    <span className="text-xs text-slate-400">Par CA</span>
+                    <span className="text-xs text-slate-400">Sur la période</span>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                     {topClients.length > 0 ? (
@@ -323,7 +349,7 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
                                 </div>
                                 <div className="text-right flex-1 ml-2">
                                     <p className="text-sm font-bold text-slate-900">{formatMoney(client.total)}</p>
-                                    {/* Barre de progression relative au meilleur client */}
+                                    {/* Barre de progression */}
                                     <div className="h-1.5 w-full bg-slate-100 rounded-full mt-1 overflow-hidden">
                                         <div 
                                             className="h-full bg-purple-500 rounded-full transition-all duration-500" 
@@ -335,7 +361,7 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, user, onNavigate }) => 
                         ))
                     ) : (
                         <div className="text-center py-10 text-slate-400">
-                            <p className="text-sm">Pas encore de clients.</p>
+                            <p className="text-sm">Aucun client sur cette période.</p>
                         </div>
                     )}
                 </div>
