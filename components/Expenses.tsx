@@ -10,7 +10,8 @@ interface ExpensesProps {
   onDelete: (id: string) => void;
 }
 
-const CATEGORIES = ['Loyer', 'Salaire', 'Marketing', 'Matériel', 'Logiciel', 'Transport', 'Services', 'Autre'];
+// Suggestions de base (l'utilisateur peut en créer d'autres)
+const SUGGESTED_CATEGORIES = ['Loyer', 'Salaire', 'Marketing', 'Matériel', 'Logiciel', 'Transport', 'Services', 'Autre'];
 const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#94a3b8'];
 
 type TimeFilter = 'day' | 'month' | 'year' | 'all';
@@ -18,16 +19,22 @@ type TimeFilter = 'day' | 'month' | 'year' | 'all';
 const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) => {
   const [showForm, setShowForm] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('All');
-  
-  // 👇 NOUVEAU : État pour le filtre temporel (Défaut : 'month' pour voir le mois en cours)
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('month');
 
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
-    category: 'Autre',
+    category: '', // Vide par défaut pour laisser le choix
     date: new Date().toISOString().split('T')[0]
   });
+
+  // 👇 NOUVEAU : Calcul dynamique des catégories pour le filtre
+  // Combine les suggestions de base ET les catégories créées par l'utilisateur
+  const allCategories = useMemo(() => {
+      const cats = new Set(SUGGESTED_CATEGORIES);
+      expenses.forEach(e => cats.add(e.category));
+      return Array.from(cats).sort();
+  }, [expenses]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,24 +43,23 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
     onAdd({
       description: formData.description,
       amount: parseFloat(formData.amount),
-      category: formData.category,
+      // Si la catégorie est vide, on met 'Autre' par défaut
+      category: formData.category.trim() || 'Autre',
       date: formData.date
     });
 
-    setFormData({ description: '', amount: '', category: 'Autre', date: new Date().toISOString().split('T')[0] });
+    setFormData({ description: '', amount: '', category: '', date: new Date().toISOString().split('T')[0] });
     setShowForm(false);
   };
 
-  // --- 🔥 LOGIQUE DE FILTRAGE COMBINÉE (Catégorie + Temps) ---
+  // --- LOGIQUE DE FILTRAGE COMBINÉE ---
   const filteredExpenses = useMemo(() => {
       let data = expenses;
 
-      // 1. Filtre par Catégorie
       if (filterCategory !== 'All') {
           data = data.filter(e => e.category === filterCategory);
       }
 
-      // 2. Filtre par Temps
       const now = new Date();
       const currentYear = now.getFullYear();
       const currentMonth = now.getMonth();
@@ -72,12 +78,10 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
               return d.getFullYear() === currentYear;
           });
       }
-      // 'all' : on ne filtre pas la date
 
       return data;
   }, [expenses, filterCategory, timeFilter]);
 
-  // --- STATS (Basées sur les données filtrées) ---
   const stats = useMemo(() => {
       const total = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
       const count = filteredExpenses.length;
@@ -86,7 +90,6 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
       return { total, count, average, max };
   }, [filteredExpenses]);
 
-  // --- GRAPHIQUE (Basé sur les données filtrées) ---
   const chartData = useMemo(() => {
       const dataMap = new Map<string, number>();
       filteredExpenses.forEach(e => {
@@ -95,7 +98,6 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
       return Array.from(dataMap.entries()).map(([name, value]) => ({ name, value }));
   }, [filteredExpenses]);
 
-  // Export CSV (Basé sur les données filtrées)
   const handleExport = () => {
       const headers = ['Date', 'Description', 'Catégorie', 'Montant'];
       const rows = filteredExpenses.map(e => [
@@ -133,7 +135,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
             </div>
         </div>
 
-        {/* 👇 BARRE DE FILTRES TEMPORELS */}
+        {/* Barre de Filtres */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50 p-2 rounded-2xl border border-slate-100">
             <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
                 {(['day', 'month', 'year', 'all'] as const).map((period) => (
@@ -150,18 +152,9 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
                     </button>
                 ))}
             </div>
-            
-            {/* Résumé textuel de la période */}
             <div className="px-2 text-sm text-slate-500 flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                {timeFilter === 'all' 
-                    ? "Historique complet" 
-                    : timeFilter === 'day' 
-                    ? "Dépenses d'aujourd'hui" 
-                    : timeFilter === 'month' 
-                    ? `Dépenses de ${new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}` 
-                    : `Année ${new Date().getFullYear()}`
-                }
+                {timeFilter === 'all' ? "Historique complet" : timeFilter === 'day' ? "Dépenses d'aujourd'hui" : timeFilter === 'month' ? `Dépenses de ${new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}` : `Année ${new Date().getFullYear()}`}
             </div>
         </div>
       </div>
@@ -209,6 +202,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Description</label>
               <input type="text" required autoFocus placeholder="" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all" />
             </div>
+            
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Montant</label>
               <div className="relative">
@@ -216,15 +210,28 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
                   <span className="absolute left-4 top-3.5 text-sm font-bold text-slate-400 pointer-events-none">{user.currency}</span>
               </div>
             </div>
+
+            {/* 👇 MODIFIÉ : INPUT AVEC DATALIST (Saisie libre + Suggestions) */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Catégorie</label>
               <div className="relative">
-                <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 appearance-none cursor-pointer">
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <input 
+                    type="text" 
+                    list="category-suggestions" 
+                    required
+                    placeholder="Ex: Marketing"
+                    value={formData.category} 
+                    onChange={e => setFormData({...formData, category: e.target.value})} 
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all" 
+                />
+                {/* Liste des suggestions */}
+                <datalist id="category-suggestions">
+                    {SUGGESTED_CATEGORIES.map(c => <option key={c} value={c} />)}
+                </datalist>
                 <Tag className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
             </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Date</label>
               <div className="relative">
@@ -232,6 +239,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
                 <Calendar className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
             </div>
+            
             <div className="flex items-end">
                 <button type="submit" className="w-full py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-500/30 flex items-center justify-center gap-2">
                     <Plus className="w-5 h-5" /> Enregistrer
@@ -252,13 +260,14 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, user, onAdd, onDelete }) 
                 
                 <div className="flex items-center gap-2">
                     <Filter className="w-4 h-4 text-slate-400" />
+                    {/* 👇 MODIFIÉ : Filtre dynamique avec toutes les catégories existantes */}
                     <select 
                         value={filterCategory} 
                         onChange={(e) => setFilterCategory(e.target.value)}
-                        className="bg-transparent text-sm font-medium text-slate-600 outline-none cursor-pointer hover:text-slate-900"
+                        className="bg-transparent text-sm font-medium text-slate-600 outline-none cursor-pointer hover:text-slate-900 max-w-[150px]"
                     >
                         <option value="All">Toutes catégories</option>
-                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                 </div>
             </div>
