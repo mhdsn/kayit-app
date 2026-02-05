@@ -29,8 +29,7 @@ import {
   Users,
   Package, 
   CreditCard,
-  Clock,
-  Filter
+  Clock
 } from 'lucide-react';
 
 interface RevenueProps {
@@ -66,44 +65,48 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
   const [timeRange, setTimeRange] = useState<TimeRange>('year');
   const [viewMode, setViewMode] = useState<'flow' | 'cumulative'>('flow');
 
-  // --- LOGIQUE DE FILTRAGE DES DATES ---
+  // --- LOGIQUE DE DATES INTELLIGENTE ---
   const getDateRange = (range: TimeRange, offset: number = 0) => {
       const now = new Date();
       const start = new Date();
       const end = new Date();
 
       if (range === 'day') {
+          // Pour "Auj", on compare avec "Hier"
           start.setDate(now.getDate() - offset);
           end.setDate(now.getDate() - offset);
           start.setHours(0,0,0,0);
           end.setHours(23,59,59,999);
       } else if (range === 'month') {
           start.setMonth(now.getMonth() - offset, 1);
-          end.setMonth(now.getMonth() - offset + 1, 0); // Dernier jour du mois
+          end.setMonth(now.getMonth() - offset + 1, 0);
       } else if (range === 'year') {
           start.setFullYear(now.getFullYear() - offset, 0, 1);
           end.setFullYear(now.getFullYear() - offset, 11, 31);
       } else {
-          // All time
+          // Pour "Toujours", pas de décalage, on prend tout
           start.setFullYear(2000, 0, 1);
           end.setFullYear(2100, 11, 31);
       }
       return { start, end };
   };
 
-  // --- CALCUL DES STATS ---
+  // --- CALCUL DES KPIS (Chiffres clés) ---
   const stats = useMemo(() => {
     const getStatsForRange = (range: TimeRange, offset: number) => {
         const { start, end } = getDateRange(range, offset);
         
-        // Filtre Invoices
+        // Si "Toujours", on ignore le range pour le calcul total global
+        const isAllTime = range === 'all';
+
         const rangeInvoices = invoices.filter(i => {
+            if (isAllTime && offset === 0) return i.status === 'paid'; // Tout l'historique
             const d = new Date(i.date);
             return d >= start && d <= end && i.status === 'paid';
         });
 
-        // Filtre Expenses
         const rangeExpenses = expenses.filter(e => {
+            if (isAllTime && offset === 0) return true; // Tout l'historique
             const d = new Date(e.date);
             return d >= start && d <= end;
         });
@@ -121,61 +124,19 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
 
     return {
         current: getStatsForRange(timeRange, 0),
-        previous: getStatsForRange(timeRange, 1) // 1 jour/mois/annee avant
+        previous: getStatsForRange(timeRange, 1) 
     };
   }, [timeRange, invoices, expenses]);
 
-  // --- DONNÉES DU GRAPHIQUE DYNAMIQUE ---
+  // --- DONNÉES DU GRAPHIQUE (La partie cruciale) ---
   const chartData = useMemo(() => {
     let data = [];
     const now = new Date();
 
-    // Cas 1 : Année (Afficher les Mois)
-    if (timeRange === 'year') {
-        const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
-        data = months.map((m, i) => {
-            const start = new Date(now.getFullYear(), i, 1);
-            const end = new Date(now.getFullYear(), i + 1, 0);
-            return calculatePeriodData(m, start, end);
-        });
-    } 
-    // Cas 2 : Mois (Afficher les Jours)
-    else if (timeRange === 'month') {
-        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        for (let i = 1; i <= daysInMonth; i++) {
-            const start = new Date(now.getFullYear(), now.getMonth(), i);
-            const end = new Date(now.getFullYear(), now.getMonth(), i, 23, 59, 59);
-            data.push(calculatePeriodData(String(i), start, end));
-        }
-    }
-    // Cas 3 : All Time (Afficher les Années)
-    else if (timeRange === 'all') {
-        const currentYear = now.getFullYear();
-        // On remonte 5 ans en arrière par exemple
-        for (let i = currentYear - 4; i <= currentYear; i++) {
-            const start = new Date(i, 0, 1);
-            const end = new Date(i, 11, 31);
-            data.push(calculatePeriodData(String(i), start, end));
-        }
-    }
-    // Cas 4 : Jour (Afficher les 7 derniers jours pour contexte)
-    else if (timeRange === 'day') {
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(now.getDate() - i);
-            const start = new Date(d.setHours(0,0,0,0));
-            const end = new Date(d.setHours(23,59,59,999));
-            // Si c'est aujourd'hui, on met un label spécial
-            const label = i === 0 ? 'Auj.' : d.toLocaleDateString('fr-FR', { weekday: 'short' });
-            data.push(calculatePeriodData(label, start, end));
-        }
-    }
-
-    // Fonction Helper locale pour calculer les données d'une période précise
+    // Fonction Helper locale
     function calculatePeriodData(name: string, start: Date, end: Date) {
         let revenue = 0;
         let expense = 0;
-
         invoices.forEach(inv => {
             const d = new Date(inv.date);
             if (d >= start && d <= end && inv.status === 'paid') revenue += inv.total;
@@ -184,11 +145,58 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
             const d = new Date(exp.date);
             if (d >= start && d <= end) expense += exp.amount;
         });
-
         return { name, revenue, expense, profit: revenue - expense };
     }
 
-    // Gestion du mode cumulé
+    if (timeRange === 'year') {
+        const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+        data = months.map((m, i) => {
+            const start = new Date(now.getFullYear(), i, 1);
+            const end = new Date(now.getFullYear(), i + 1, 0);
+            return calculatePeriodData(m, start, end);
+        });
+    } 
+    else if (timeRange === 'month') {
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        for (let i = 1; i <= daysInMonth; i++) {
+            const start = new Date(now.getFullYear(), now.getMonth(), i);
+            const end = new Date(now.getFullYear(), now.getMonth(), i, 23, 59, 59);
+            // On n'affiche que les jours pairs pour alléger si besoin, ou on formatte court
+            data.push(calculatePeriodData(String(i), start, end));
+        }
+    }
+    // 👇 MODIFIÉ : LOGIQUE INTELLIGENTE POUR "TOUJOURS"
+    else if (timeRange === 'all') {
+        const currentYear = now.getFullYear();
+        // On trouve la première année d'activité
+        const allDates = [...invoices.map(i => i.date), ...expenses.map(e => e.date)].map(d => new Date(d).getFullYear());
+        const minYear = allDates.length > 0 ? Math.min(...allDates) : currentYear;
+        
+        // On génère de la première année trouvée jusqu'à aujourd'hui
+        for (let i = minYear; i <= currentYear; i++) {
+            const start = new Date(i, 0, 1);
+            const end = new Date(i, 11, 31);
+            data.push(calculatePeriodData(String(i), start, end));
+        }
+    }
+    // 👇 MODIFIÉ : LOGIQUE POUR "AUJOURD'HUI" (7 Derniers jours)
+    else if (timeRange === 'day') {
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(now.getDate() - i);
+            const start = new Date(d.setHours(0,0,0,0));
+            const end = new Date(d.setHours(23,59,59,999));
+            
+            // Format : "Lun 12"
+            const dayName = d.toLocaleDateString('fr-FR', { weekday: 'short' });
+            const dayNum = d.getDate();
+            const label = i === 0 ? 'Auj.' : `${dayName} ${dayNum}`;
+            
+            data.push(calculatePeriodData(label, start, end));
+        }
+    }
+
+    // Mode cumulé
     if (viewMode === 'cumulative') {
         let accRevenue = 0;
         let accProfit = 0;
@@ -202,24 +210,25 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
     return data;
   }, [invoices, expenses, timeRange, viewMode]);
 
-  // --- KPIS DETAILLES ---
+  // --- KPIS DÉTAILLÉS ---
   const detailedStats = useMemo(() => {
       const { start, end } = getDateRange(timeRange);
+      const isAllTime = timeRange === 'all';
 
-      // Helper pour filtrer
       const filterDate = (dateStr: string) => {
+          if (isAllTime) return true;
           const d = new Date(dateStr);
           return d >= start && d <= end;
       };
 
-      // 1. Top Clients
+      // Top Clients
       const clientMap = new Map<string, number>();
       invoices.filter(i => filterDate(i.date) && i.status === 'paid').forEach(inv => {
           clientMap.set(inv.clientName, (clientMap.get(inv.clientName) || 0) + inv.total);
       });
       const topClients = Array.from(clientMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
 
-      // 2. Top Services
+      // Top Services
       const servicesMap = new Map<string, number>();
       invoices.filter(i => filterDate(i.date) && i.status === 'paid').forEach(inv => {
           inv.items.forEach(item => {
@@ -228,7 +237,7 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
       });
       const topServices = Array.from(servicesMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
 
-      // 3. Paiements
+      // Paiements
       const paymentMap = new Map<string, number>();
       invoices.filter(i => filterDate(i.date) && i.status === 'paid').forEach(inv => {
           const method = inv.paymentMethod || 'Autre';
@@ -237,12 +246,13 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
       const paymentMethods = Array.from(paymentMap.entries()).map(([name, value]) => ({ name, value }));
 
       return { topClients, topServices, paymentMethods };
-  }, [invoices, timeRange]);
+  }, [invoices, expenses, timeRange]);
 
   const pendingAmount = useMemo(() => {
       const { start, end } = getDateRange(timeRange);
       return invoices
         .filter(i => {
+            if (timeRange === 'all') return i.status === 'pending';
             const d = new Date(i.date);
             return d >= start && d <= end && i.status === 'pending';
         })
@@ -259,20 +269,18 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
         <div>
           <h2 className="text-3xl font-bold text-slate-900 font-display">Analyse Financière</h2>
           <p className="text-slate-500 mt-1">
-              {timeRange === 'day' ? "Performances d'aujourd'hui" : 
-               timeRange === 'month' ? "Performances du mois en cours" :
-               timeRange === 'year' ? "Performances de l'année en cours" : "Performances globales"}
+              {timeRange === 'day' ? "Aperçu des 7 derniers jours" : 
+               timeRange === 'month' ? `Détail du mois de ${new Date().toLocaleDateString('fr-FR', {month:'long'})}` :
+               timeRange === 'year' ? `Année ${new Date().getFullYear()}` : "Historique complet"}
           </p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-            {/* Toggle Vue */}
             <div className="flex bg-slate-100 p-1 rounded-lg">
                 <button onClick={() => setViewMode('flow')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'flow' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Flux</button>
                 <button onClick={() => setViewMode('cumulative')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'cumulative' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Cumulé</button>
             </div>
 
-            {/* Sélecteur de Période (Cœur de la modif) */}
             <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
                 {(['day', 'month', 'year', 'all'] as const).map((t) => (
                     <button
@@ -346,7 +354,7 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
           <div className="flex items-center justify-between mb-6">
               <h3 className="font-bold text-slate-900 flex items-center gap-2">
                   {viewMode === 'flow' ? <TrendingUp className="w-5 h-5 text-brand-600" /> : <Target className="w-5 h-5 text-brand-600" />}
-                  Evolution {timeRange === 'day' ? '(7 derniers jours)' : timeRange === 'month' ? '(Par jour)' : timeRange === 'year' ? '(Par mois)' : '(Par année)'}
+                  Evolution {timeRange === 'day' ? '(7 derniers jours)' : timeRange === 'month' ? '(Ce mois)' : timeRange === 'year' ? '(Cette année)' : '(Global)'}
               </h3>
               <div className="hidden sm:flex items-center gap-4 text-xs font-medium">
                   <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Revenus</div>
@@ -360,11 +368,11 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
                   {viewMode === 'flow' ? (
                       <ComposedChart data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
                           <CartesianGrid stroke="#f1f5f9" vertical={false} />
-                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} />
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} dy={10} />
+                          <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} />
                           <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} formatter={(value: number) => formatPrice(value, user.currency)} />
-                          <Bar dataKey="revenue" barSize={timeRange === 'month' ? 8 : 20} fill="#10b981" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="expense" barSize={timeRange === 'month' ? 8 : 20} fill="#ef4444" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="revenue" barSize={30} fill="#10b981" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="expense" barSize={30} fill="#ef4444" radius={[4, 4, 0, 0]} />
                           <Line type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={3} dot={{r: 4}} />
                       </ComposedChart>
                   ) : (
@@ -391,13 +399,13 @@ const Revenue: React.FC<RevenueProps> = ({ invoices = [], expenses = [], user })
           </div>
       </div>
 
-      {/* 3. NOUVELLE SECTION DÉTAILLÉE */}
+      {/* 3. SECTION DÉTAILLÉE */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* COL 1: TOP CLIENTS */}
           <div className="bg-white p-6 rounded-2xl shadow-card border border-slate-200">
               <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-purple-600" /> Meilleurs Clients
+                  <Users className="w-5 h-5 text-purple-600" /> Baleines (Top Clients)
               </h4>
               <div className="space-y-4">
                   {detailedStats.topClients.length > 0 ? detailedStats.topClients.map((client, i) => (
