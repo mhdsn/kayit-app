@@ -8,7 +8,6 @@ const TEXT_GRAY = '#64748b';
 
 const getTheme = (user: User) => {
   const isBusiness = user.plan === 'business';
-  // 👇 C'est ici que la personnalisation se fait : on utilise la couleur de la marque
   const accentColor = (isBusiness && user.brandColor) ? user.brandColor : STANDARD_BLUE;
   
   return {
@@ -27,7 +26,6 @@ const getTheme = (user: User) => {
   };
 };
 
-// Formatage propre pour éviter les bugs d'affichage PDF
 const formatMoney = (amount: number, currency: string = 'XOF') => {
     const integerPart = amount.toFixed(0);
     const formatted = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -53,11 +51,11 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
   let cursorY = margin;
 
   // =================================================================
-  // 💎 DESIGN BUSINESS (Personnalisable & Structuré)
+  // 💎 DESIGN BUSINESS
   // =================================================================
   if (isBusiness) {
       
-      // --- 1. EN-TÊTE (Gauche : Emetteur / Droite : Client) ---
+      // --- 1. EN-TÊTE ---
       let leftY = margin + 5;
       
       // LOGO
@@ -73,7 +71,7 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       }
 
       // INFO ENTREPRISE
-      setFont('bold', 16, theme.accent); // Utilise la couleur de la marque
+      setFont('bold', 16, theme.accent);
       doc.text(user.businessName || user.name, margin, leftY + 5);
       leftY += 12;
 
@@ -95,11 +93,31 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       
       setFont('bold', 10, TEXT_DARK);
       doc.text(`#${invoice.number}`, rightColX, rightY + 10, { align: 'right' });
+      
       setFont('normal', 9, TEXT_GRAY);
       doc.text(`Date : ${new Date(invoice.date).toLocaleDateString('fr-FR')}`, rightColX, rightY + 15, { align: 'right' });
 
+      // 👇 AJOUT : Echéance et Statut
+      let statusY = rightY + 21;
+      
+      if (invoice.dueDate) {
+          doc.text(`Échéance : ${new Date(invoice.dueDate).toLocaleDateString('fr-FR')}`, rightColX, statusY, { align: 'right' });
+          statusY += 6;
+      }
+
+      if (invoice.status === 'paid') {
+          setFont('bold', 10, '#10b981'); // Vert
+          doc.text("PAYÉE", rightColX, statusY, { align: 'right' });
+      } else if (invoice.status === 'overdue') {
+          setFont('bold', 10, '#ef4444'); // Rouge
+          doc.text("EN RETARD", rightColX, statusY, { align: 'right' });
+      } else if (invoice.status === 'pending') {
+          setFont('bold', 10, '#f59e0b'); // Orange
+          doc.text("EN ATTENTE", rightColX, statusY, { align: 'right' });
+      }
+
       // CLIENT (Décalé à droite)
-      rightY += 35;
+      rightY += 45; // Descendu un peu pour laisser la place au statut
       const clientBoxX = pageWidth / 2 + 20;
       
       setFont('bold', 8, TEXT_DARK);
@@ -120,13 +138,13 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
 
       cursorY = Math.max(finalLeftY, finalRightY) + 20;
 
-      // --- 2. TABLEAU (Header coloré) ---
+      // --- 2. TABLEAU ---
       const colDesc = margin;
       const colPrice = pageWidth - margin - 75;
       const colQty = pageWidth - margin - 45;
       const colTotal = pageWidth - margin;
 
-      doc.setFillColor(theme.accent); // Fond couleur personnalisée
+      doc.setFillColor(theme.accent);
       doc.rect(margin, cursorY, pageWidth - (margin * 2), 10, 'F');
       
       const headerTextY = cursorY + 6.5;
@@ -177,7 +195,6 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
 
       cursorY += 10;
 
-      // Total (Encadré couleur personnalisée)
       doc.setFillColor(theme.accent);
       doc.rect(summaryX - 5, cursorY, summaryWidth + 5, 12, 'F');
       
@@ -186,52 +203,35 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       setFont('bold', 12, theme.text.white);
       doc.text(formatMoney(invoice.total, invoice.currency), pageWidth - margin - 5, cursorY + 8, { align: 'right' });
 
-      // 👇 AJOUT : CACHET / SIGNATURE (VERSION PRO)
+      // CACHET / SIGNATURE
       if (user.signature) {
-          // Dimensions plus réalistes (pas trop gros)
           const stampWidth = 35;
           const stampHeight = 18;
-          
-          // Position : En bas à droite, remonté pour ne pas toucher le footer
           const stampX = pageWidth - margin - stampWidth; 
           const stampY = pageHeight - 68; 
 
-          // Texte "LA DIRECTION" centré au-dessus
           setFont('bold', 8, TEXT_DARK);
           doc.text("LA DIRECTION", stampX + (stampWidth / 2), stampY, { align: 'center' });
 
           try {
-              // Rotation de -3 degrés pour l'effet réaliste
-              doc.addImage(
-                  user.signature, 
-                  'PNG', 
-                  stampX, 
-                  stampY + 2, 
-                  stampWidth, 
-                  stampHeight, 
-                  undefined, 
-                  'FAST', 
-                  -3 
-              );
+              doc.addImage(user.signature, 'PNG', stampX, stampY + 2, stampWidth, stampHeight, undefined, 'FAST', -3);
           } catch (e) {
               console.warn("Erreur ajout signature PDF", e);
           }
       }
 
-      // --- 4. PIED DE PAGE (3 Colonnes) ---
+      // --- 4. PIED DE PAGE ---
       const footerY = pageHeight - 40;
       doc.setDrawColor(theme.accent);
       doc.setLineWidth(0.5);
       doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
 
-      // Contact
       setFont('bold', 8, TEXT_DARK);
       doc.text("NOUS CONTACTER", margin, footerY + 5);
       setFont('normal', 7, TEXT_GRAY);
       doc.text(user.email, margin, footerY + 10);
       if(user.phone) doc.text(user.phone, margin, footerY + 14);
 
-      // Paiement
       const col2X = margin + 60;
       setFont('bold', 8, TEXT_DARK);
       doc.text("PAIEMENT", col2X, footerY + 5);
@@ -245,7 +245,6 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
           doc.text(`Échéance : ${new Date(invoice.dueDate).toLocaleDateString('fr-FR')}`, col2X, payY);
       }
 
-      // Notes
       const col3X = margin + 120;
       setFont('bold', 8, TEXT_DARK);
       doc.text("NOTES", col3X, footerY + 5);
@@ -257,9 +256,8 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
 
   } else {
       // =================================================================
-      // 🛡️ DESIGN STANDARD (Code existant inchangé)
+      // 🛡️ DESIGN STANDARD
       // =================================================================
-      
       const showLogo = user.plan !== 'starter' && user.logo;
 
       if (showLogo) {
@@ -289,7 +287,6 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       const dateStr = new Date(invoice.date).toLocaleDateString('fr-FR');
       doc.text(`Date : ${dateStr}`, rightX, cursorY + 17, { align: 'right' });
 
-      // ECHEANCE OPTIONNELLE
       let statusY = cursorY + 23; 
       
       if (invoice.dueDate) {
@@ -301,6 +298,9 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       if (invoice.status === 'paid') {
           setFont('bold', 10, '#10b981'); 
           doc.text("PAYÉE", rightX, statusY, { align: 'right' });
+      } else if (invoice.status === 'overdue') {
+          setFont('bold', 10, '#ef4444'); 
+          doc.text("EN RETARD", rightX, statusY, { align: 'right' });
       } else if (invoice.status === 'pending') {
           setFont('bold', 10, '#f59e0b'); 
           doc.text("EN ATTENTE", rightX, statusY, { align: 'right' });
@@ -335,7 +335,6 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
 
       cursorY += 40;
 
-      // TABLEAU STANDARD
       const colDesc = margin;
       const colQty = pageWidth / 2;
       const colPrice = pageWidth - margin - 60;
@@ -356,14 +355,10 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       invoice.items.forEach((item) => {
           setFont('normal', 10, TEXT_DARK);
           doc.text(item.description, colDesc + 5, cursorY);
-          
           doc.text(item.quantity.toString(), colQty, cursorY, { align: 'center' });
-          
           doc.text(formatMoney(item.price, invoice.currency), colPrice, cursorY, { align: 'right' });
-          
           setFont('bold', 10, TEXT_DARK);
           doc.text(formatMoney(item.price * item.quantity, invoice.currency), colTotal - 5, cursorY, { align: 'right' });
-          
           cursorY += 10;
       });
       
@@ -377,13 +372,11 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       if (invoice.notes || invoice.paymentMethod) {
           const notesWidth = pageWidth - margin*2 - summaryWidth - 10;
           let noteY = cursorY;
-
           if (invoice.paymentMethod) {
               setFont('bold', 9, TEXT_DARK); 
               doc.text(`Paiement via : ${invoice.paymentMethod}`, margin, noteY + 4);
               noteY += 8;
           }
-
           if (invoice.notes) {
               setFont('italic', 9, TEXT_GRAY);
               const splitNotes = doc.splitTextToSize(invoice.notes, notesWidth);
@@ -419,7 +412,6 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
   return doc;
 };
 
-// FONCTION AVEC SUPPORT MOBILE
 export const generateInvoicePDF = async (invoice: Invoice, user: User) => {
   const doc = createInvoiceDoc(invoice, user);
   const fileName = invoice.number ? `Facture-${invoice.number}.pdf` : 'Facture.pdf';
@@ -430,7 +422,6 @@ export const generateInvoicePDF = async (invoice: Invoice, user: User) => {
     try {
       const blob = doc.output('blob');
       const file = new File([blob], fileName, { type: 'application/pdf' });
-
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
@@ -439,11 +430,8 @@ export const generateInvoicePDF = async (invoice: Invoice, user: User) => {
         });
         return; 
       }
-    } catch (error) {
-      console.warn("Partage mobile annulé, on tente le téléchargement classique.");
-    }
+    } catch (error) {}
   }
-
   doc.save(fileName);
 };
 
