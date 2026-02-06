@@ -6,7 +6,6 @@ import { ArrowRight, AlertCircle, Loader2, Building2, Phone, User as UserIcon, M
 interface AuthProps {
   onLogin: (user: User) => void;
   initialMode?: 'login' | 'signup';
-  // 👇 NOUVEAU : Fonction pour revenir en arrière
   onGoBack: () => void;
 }
 
@@ -16,7 +15,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin, initialMode = 'login', onGoBack })
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Champs du formulaire
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -117,7 +115,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, initialMode = 'login', onGoBack })
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
       
-      {/* 👇 BOUTON RETOUR (NOUVEAU) */}
+      {/* BOUTON RETOUR (NOUVEAU) */}
       <button 
         onClick={onGoBack}
         className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center text-slate-500 hover:text-brand-600 transition-colors font-medium z-20 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full border border-slate-200 hover:border-brand-200 hover:shadow-sm"

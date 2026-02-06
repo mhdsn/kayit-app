@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Invoice, InvoiceItem, User, formatPrice, Client } from '../types'; // Ajout de Client
+import { Invoice, InvoiceItem, User, formatPrice, Client } from '../types'; 
 import { Plus, Trash2, Save, ArrowLeft, Lock, Mail, User as UserIcon, Eye, X, Download, FileText, ChevronDown, Wallet, AlignLeft, Sparkles, MapPin, CheckCircle2, Clock } from 'lucide-react';
 import { getInvoicePdfBlobUrl, generateInvoicePDF } from '../services/pdfService';
 import { supabase } from '../services/supabaseClient'; 
-import { getClients, upsertClient } from '../services/clientService'; // Ajout des services Client
+import { getClients, upsertClient } from '../services/clientService'; 
 
 interface InvoiceFormProps {
   onSave: (invoice: Invoice) => void;
@@ -22,11 +22,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
   const [currentMonthCount, setCurrentMonthCount] = useState(0);
   const [number, setNumber] = useState(initialData?.number || 'Chargement...');
 
-  // 👇 NOUVEAU : État pour les clients sauvegardés
+  // État pour les clients sauvegardés
   const [savedClients, setSavedClients] = useState<Client[]>([]);
 
   useEffect(() => {
-    // 👇 NOUVEAU : On charge les clients au démarrage
     const loadClients = async () => {
         const clients = await getClients();
         setSavedClients(clients);
@@ -100,7 +99,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
   const [status, setStatus] = useState<Invoice['status']>(initialData?.status || 'pending');
   const [paymentMethod, setPaymentMethod] = useState(initialData?.paymentMethod || ''); 
   
-  // 👇 NOUVEAU : On utilise user.defaultNote si aucune note n'est fournie (création)
+  // Note par défaut
   const [notes, setNotes] = useState(initialData?.notes || user.defaultNote || '');
   
   const [currency, setCurrency] = useState(initialData?.currency || user.currency || 'XOF');
@@ -120,12 +119,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
     };
   }, [previewUrl]);
 
-  // 👇 NOUVEAU : Gestion intelligente du changement de nom client
+  // Gestion intelligente du changement de nom client
   const handleClientNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const newName = e.target.value;
       setClientName(newName);
 
-      // Autocomplétion si le client existe déjà
       const existingClient = savedClients.find(c => c.name.toLowerCase() === newName.toLowerCase());
       if (existingClient) {
           if (!clientEmail) setClientEmail(existingClient.email || '');
@@ -172,11 +170,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
       paymentMethod: paymentMethod || undefined,
       notes: notes || undefined,
       currency: currency, 
+      // 👇 IMPORTANT : On n'a pas besoin de stocker la signature dans l'objet Invoice en BDD 
+      // car elle est liée au User. Le service PDF la récupérera via l'objet 'user' passé en argument.
     };
   };
 
   const handlePreview = () => {
     const tempInvoice = constructInvoiceData();
+    // On passe 'user' qui contient maintenant potentiellement user.signature
     const url = getInvoicePdfBlobUrl(tempInvoice, user);
     setPreviewUrl(url);
     setIsPreviewOpen(true);
@@ -190,7 +191,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // 👇 NOUVEAU : Sauvegarde automatique du client si le nom est rempli
     if (clientName.trim()) {
         await upsertClient({
             name: clientName,
@@ -296,7 +296,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSave, onCancel, onGoToPrici
                                 <UserIcon className="w-3 h-3" /> Informations Client
                             </h3>
                             
-                            {/* 👇 NOUVEAU : Input avec Datalist pour autocomplétion */}
                             <div>
                                 <input
                                     required 

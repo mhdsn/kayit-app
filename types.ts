@@ -30,14 +30,15 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  plan: UserPlan; 
+  plan: UserPlan;
+  signature?: string;
   businessName?: string;
   address?: string;
   phone?: string;
   currency: string;
   logo?: string; 
   brandColor?: string; 
-  defaultNote?: string; // 👈 AJOUT : Note par défaut
+  defaultNote?: string; 
 }
 
 // --- 2. Utilitaires (On garde ton code existant !) ---

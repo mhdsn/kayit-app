@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, CURRENCIES } from '../types';
-import { Save, User as UserIcon, Building, Mail, Phone, MapPin, Globe, Image as ImageIcon, Palette, Lock, Crown, Upload, Trash2, AlertCircle, AlertTriangle, CheckCircle2, AlignLeft } from 'lucide-react';
+import { Save, User as UserIcon, Building, Mail, Phone, MapPin, Globe, Image as ImageIcon, Palette, Lock, Crown, Upload, Trash2, AlertCircle, AlertTriangle, CheckCircle2, AlignLeft, X } from 'lucide-react';
 
 interface SettingsProps {
   user: User;
   onUpdateUser: (user: User) => void;
-  // 👇 NOUVEAU : Fonction pour verrouiller la navigation dans App.tsx
   setHasUnsavedChanges: (hasChanges: boolean) => void;
 }
 
@@ -31,19 +30,17 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
         normalize(formData.address) !== normalize(user.address) ||
         normalize(formData.currency) !== normalize(user.currency || 'XOF') ||
         normalize(formData.brandColor) !== normalize(user.brandColor || '#2563EB') ||
-        normalize(formData.defaultNote) !== normalize(user.defaultNote) || // 👈 CHECK NOTE
-        formData.logo !== user.logo;
+        normalize(formData.defaultNote) !== normalize(user.defaultNote) ||
+        formData.logo !== user.logo ||
+        formData.signature !== user.signature; // 👈 AJOUT : Détection changement signature
 
     setIsDirty(hasChanges);
-    
-    // 👇 ON VERROUILLE/DÉVERROUILLE LA NAVIGATION ICI
     setHasUnsavedChanges(hasChanges);
 
-    // Nettoyage : si le composant est démonté, on déverrouille tout
     return () => setHasUnsavedChanges(false);
   }, [formData, user, setHasUnsavedChanges]);
 
-  // 2. EFFET : Protection fermeture navigateur (Refresh / Fermer onglet)
+  // 2. EFFET : Protection fermeture navigateur
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
@@ -85,6 +82,22 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
     reader.readAsDataURL(file);
   };
 
+  // 👇 AJOUT : Fonction d'upload pour la signature
+  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+        if (file.size > 1024 * 1024) { // Limite 1MB
+            alert("L'image est trop lourde (max 1MB)");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setFormData(prev => ({ ...prev, signature: reader.result as string }));
+        };
+        reader.readAsDataURL(file);
+    }
+  };
+
   const removeLogo = () => {
       setFormData(prev => ({ ...prev, logo: undefined }));
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -96,7 +109,6 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
 
     onUpdateUser(formData);
     
-    // 👇 RESET APRÈS SAUVEGARDE RÉUSSIE
     setIsDirty(false); 
     setHasUnsavedChanges(false); 
     
@@ -151,6 +163,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
                  <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center"></div>
              )}
              
+             {/* LOGO */}
              <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Logo de l'entreprise</label>
                 <div className="flex items-start gap-4">
@@ -179,6 +192,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
                 </div>
             </div>
 
+            {/* COULEUR */}
             <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Couleur principale</label>
                 <div className="flex items-center gap-3">
@@ -190,6 +204,59 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
                 </div>
                  <p className="text-[10px] text-slate-400 mt-1">Cette couleur remplacera le bleu par défaut sur vos documents.</p>
             </div>
+
+            {/* 👇 AJOUT : SECTION CACHET / SIGNATURE */}
+            <div className="col-span-1 md:col-span-2 mt-2 pt-6 border-t border-slate-100/50">
+                 <div className="flex items-center justify-between mb-3">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        Cachet / Signature numérique
+                    </label>
+                    {!isBusiness && (
+                        <span className="flex items-center gap-1 bg-violet-100 text-violet-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            <Crown className="w-3 h-3" /> Business
+                        </span>
+                    )}
+                 </div>
+
+                 {isBusiness ? (
+                    // VERSION DÉBLOQUÉE
+                    <div className="flex items-center gap-4">
+                        <div className="relative w-32 h-20 border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center bg-slate-50 overflow-hidden group hover:border-violet-400 transition-colors">
+                            {formData.signature ? (
+                                <img src={formData.signature} alt="Signature" className="w-full h-full object-contain p-2 mix-blend-multiply" />
+                            ) : (
+                                <div className="text-center">
+                                    <ImageIcon className="w-6 h-6 text-slate-300 mx-auto mb-1" />
+                                    <span className="text-[10px] text-slate-400">Vide</span>
+                                </div>
+                            )}
+                            {formData.signature && (
+                                <button onClick={() => setFormData({...formData, signature: undefined})} className="absolute top-1 right-1 bg-white shadow-sm border border-slate-200 text-slate-500 hover:text-red-600 rounded-md p-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                                    <X className="w-3 h-3" />
+                                </button>
+                            )}
+                        </div>
+                        <div>
+                            <input type="file" id="signature-upload" className="hidden" accept="image/*" onChange={handleSignatureUpload} />
+                            <label htmlFor="signature-upload" className="cursor-pointer bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors inline-block shadow-sm">
+                                <Upload className="w-4 h-4 inline mr-2"/> Importer
+                            </label>
+                            <p className="text-[10px] text-slate-400 mt-1">PNG transparent recommandé.</p>
+                        </div>
+                    </div>
+                 ) : (
+                    // VERSION VERROUILLÉE
+                    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-col items-center justify-center text-center">
+                        <div className="relative z-10 bg-white p-1.5 rounded-full shadow-sm mb-2">
+                            <Lock className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <p className="text-xs text-slate-500">
+                            Ajoutez votre cachet officiel pour professionnaliser vos documents. <span className="text-violet-600 font-bold">Plan Business uniquement.</span>
+                        </p>
+                    </div>
+                 )}
+            </div>
+
           </div>
         </div>
 
@@ -209,7 +276,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
                 </div>
                 <p className="text-xs text-slate-500 mt-2">Cette devise sera utilisée pour toutes vos factures et les statistiques.</p>
             </div>
-            {/* 👇 AJOUT : Note par défaut */}
+            
             <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
                     <AlignLeft className="w-4 h-4" /> Note par défaut (Pied de page)
