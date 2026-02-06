@@ -186,17 +186,33 @@ const createInvoiceDoc = (invoice: Invoice, user: User): jsPDF => {
       setFont('bold', 12, theme.text.white);
       doc.text(formatMoney(invoice.total, invoice.currency), pageWidth - margin - 5, cursorY + 8, { align: 'right' });
 
-      // 👇 AJOUT : CACHET / SIGNATURE (Uniquement Business)
+      // 👇 AJOUT : CACHET / SIGNATURE (VERSION PRO)
       if (user.signature) {
-          const signY = pageHeight - 65; // Positionné au-dessus du pied de page
-          const signX = pageWidth - margin - 40; // Alignement droite
+          // Dimensions plus réalistes (pas trop gros)
+          const stampWidth = 35;
+          const stampHeight = 18;
+          
+          // Position : En bas à droite, remonté pour ne pas toucher le footer
+          const stampX = pageWidth - margin - stampWidth; 
+          const stampY = pageHeight - 68; 
 
+          // Texte "LA DIRECTION" centré au-dessus
           setFont('bold', 8, TEXT_DARK);
-          doc.text("LA DIRECTION", signX + 20, signY, { align: 'center' }); // Centré par rapport à l'image
+          doc.text("LA DIRECTION", stampX + (stampWidth / 2), stampY, { align: 'center' });
 
           try {
-              // x, y, width, height
-              doc.addImage(user.signature, 'PNG', signX, signY + 2, 40, 20);
+              // Rotation de -3 degrés pour l'effet réaliste
+              doc.addImage(
+                  user.signature, 
+                  'PNG', 
+                  stampX, 
+                  stampY + 2, 
+                  stampWidth, 
+                  stampHeight, 
+                  undefined, 
+                  'FAST', 
+                  -3 
+              );
           } catch (e) {
               console.warn("Erreur ajout signature PDF", e);
           }
