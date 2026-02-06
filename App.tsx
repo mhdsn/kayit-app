@@ -52,7 +52,8 @@ const App: React.FC = () => {
             logo: meta.logo || undefined,
             brandColor: meta.brandColor || undefined,
             address: meta.address || '',
-            defaultNote: meta.default_note || ''
+            defaultNote: meta.default_note || '',
+            signature: meta.signature || undefined // 👈 1. RECUPERATION AU CHARGEMENT
         };
     };
 
@@ -143,7 +144,8 @@ const App: React.FC = () => {
                   logo: u.logo, 
                   brandColor: u.brandColor,
                   address: u.address,
-                  default_note: u.defaultNote
+                  default_note: u.defaultNote,
+                  signature: u.signature // 👈 2. ENVOI A LA SAUVEGARDE
               } 
           }); 
           showNotification("Profil sauvegardé !", 'success'); 
@@ -281,10 +283,10 @@ const App: React.FC = () => {
         {notification && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300 pointer-events-none">
                 <div className="flex items-center gap-3 px-6 py-3 rounded-full shadow-lg border pointer-events-auto bg-white">
-                     {notification.type === 'success' 
+                      {notification.type === 'success' 
                         ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                         : <Info className="w-5 h-5 text-brand-600" />
-                     }
+                      }
                     <span className={`font-medium text-sm ${
                         notification.type === 'success' ? 'text-emerald-700' : 'text-brand-700'
                     }`}>
