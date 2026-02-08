@@ -10,6 +10,8 @@ import LandingPage from './components/LandingPage';
 import Pricing from './components/Pricing';
 import Settings from './components/Settings';
 import Revenue from './components/Revenue';
+// 👇 1. IMPORT DU COMPOSANT ADMIN
+import Admin from './components/Admin'; 
 import { AppRoute, Invoice, User, UserPlan, Expense } from './types';
 import { supabase } from './services/supabaseClient';
 import UpgradeToBusiness from './components/UpgradeToBusiness';
@@ -19,6 +21,9 @@ import {
   deleteInvoice 
 } from './services/storageService';
 import { getExpenses, addExpense, deleteExpense } from './services/expenseService';
+
+// 👇 2. DÉFINIS TON EMAIL ADMIN ICI (Pour la sécurité)
+const MY_ADMIN_EMAIL = "senemouhamed27@gmail.com"; 
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -53,7 +58,7 @@ const App: React.FC = () => {
             brandColor: meta.brandColor || undefined,
             address: meta.address || '',
             defaultNote: meta.default_note || '',
-            signature: meta.signature || undefined // 👈 1. RECUPERATION AU CHARGEMENT
+            signature: meta.signature || undefined
         };
     };
 
@@ -145,7 +150,7 @@ const App: React.FC = () => {
                   brandColor: u.brandColor,
                   address: u.address,
                   default_note: u.defaultNote,
-                  signature: u.signature // 👈 2. ENVOI A LA SAUVEGARDE
+                  signature: u.signature 
               } 
           }); 
           showNotification("Profil sauvegardé !", 'success'); 
@@ -226,7 +231,6 @@ const App: React.FC = () => {
         return <Dashboard invoices={invoices} expenses={expenses} user={user} onNavigate={(route) => handleNavigate(route as AppRoute)} />;
       
       case AppRoute.REVENUE:
-        // 👇 PROTECTION : REVENUS
         if (!isBusiness) return <UpgradeToBusiness onUpgrade={() => handleNavigate(AppRoute.PRICING)} />;
         return <Revenue invoices={invoices} expenses={expenses} user={user} />;
         
@@ -246,7 +250,6 @@ const App: React.FC = () => {
         );
       
       case AppRoute.EXPENSES:
-        // 👇 PROTECTION : DÉPENSES
         if (!isBusiness) return <UpgradeToBusiness onUpgrade={() => handleNavigate(AppRoute.PRICING)} />;
         return <Expenses expenses={expenses} user={user} onAdd={handleAddExpense} onDelete={handleDeleteExpense} />;
       
@@ -260,6 +263,21 @@ const App: React.FC = () => {
       case AppRoute.PRICING:
         return <Pricing user={user} onUpgrade={handleUpgrade} onDowngrade={handleDowngrade} />;
       
+      // 👇 3. ROUTE ADMIN SÉCURISÉE
+      case AppRoute.ADMIN:
+        if (user.email !== MY_ADMIN_EMAIL) {
+            return (
+                <div className="flex flex-col items-center justify-center h-[50vh] text-center">
+                    <h2 className="text-2xl font-bold text-slate-800">Accès Interdit ⛔</h2>
+                    <p className="text-slate-500 mt-2">Cette page est réservée à l'administrateur.</p>
+                    <button onClick={() => handleNavigate(AppRoute.DASHBOARD)} className="mt-4 px-4 py-2 bg-slate-200 rounded-lg font-medium text-slate-700 hover:bg-slate-300">
+                        Retour au Dashboard
+                    </button>
+                </div>
+            );
+        }
+        return <Admin />;
+
       default:
         return <div>Introuvable</div>;
     }

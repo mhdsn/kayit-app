@@ -55,7 +55,8 @@ export enum AppRoute {
   EXPENSES = 'expenses',
   CREATE_INVOICE = 'create-invoice',
   SETTINGS = 'settings',
-  PRICING = 'pricing'
+  PRICING = 'pricing',
+  ADMIN = 'admin' // 👈 AJOUTÉ ICI : C'est ce qui corrige l'erreur rouge !
 }
 
 export const CURRENCIES = [

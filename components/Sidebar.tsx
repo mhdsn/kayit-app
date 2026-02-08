@@ -13,7 +13,8 @@ import {
   BarChart3,
   PlusCircle,
   TrendingDown,
-  Lock // 👈 AJOUT IMPORT
+  Lock,
+  ShieldCheck // 👈 AJOUT IMPORT
 } from 'lucide-react';
 import { AppRoute, Invoice, User } from '../types';
 
@@ -27,6 +28,9 @@ interface SidebarProps {
   setIsMobileOpen: (open: boolean) => void;
 }
 
+// 👇 REMPLACE PAR TON EMAIL ADMIN ICI
+const MY_ADMIN_EMAIL = "senemouhamed27@gmail.com"; 
+
 const Sidebar: React.FC<SidebarProps> = ({ 
   currentRoute, 
   onChangeRoute, 
@@ -37,15 +41,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   setIsMobileOpen
 }) => {
   
-  // 👇 AJOUT : Vérification du plan
   const isBusiness = user.plan === 'business';
 
-  // 👇 AJOUT : Propriété 'locked'
   const navItems = [
     { id: AppRoute.DASHBOARD, label: 'Tableau de bord', icon: LayoutDashboard, locked: false },
-    { id: AppRoute.REVENUE, label: 'Analyse Financière', icon: BarChart3, locked: !isBusiness }, // Verrouillé si pas Business
+    { id: AppRoute.REVENUE, label: 'Analyse Financière', icon: BarChart3, locked: !isBusiness },
     { id: AppRoute.INVOICES, label: 'Mes factures', icon: FileText, locked: false },
-    { id: AppRoute.EXPENSES, label: 'Dépenses', icon: TrendingDown, locked: !isBusiness }, // Verrouillé si pas Business
+    { id: AppRoute.EXPENSES, label: 'Dépenses', icon: TrendingDown, locked: !isBusiness },
     { id: AppRoute.CREATE_INVOICE, label: 'Créer une facture', icon: PlusCircle, locked: false },
   ];
 
@@ -63,7 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     let limit = 0;
     if (user.plan === 'starter') limit = 10;
     else if (user.plan === 'pro') limit = 100;
-    else limit = -1; // Illimité
+    else limit = -1; 
 
     const remaining = limit === -1 ? -1 : Math.max(0, limit - monthlyCount);
     const percentage = limit === -1 ? 0 : Math.min(100, (monthlyCount / limit) * 100);
@@ -86,7 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   // --- RENDU DU COMPOSANT ---
   return (
     <>
-      {/* 1. OVERLAY MOBILE (Fond noir) */}
+      {/* 1. OVERLAY MOBILE */}
       {isMobileOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/60 z-[90] md:hidden backdrop-blur-sm transition-opacity"
@@ -104,7 +106,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         h-[100dvh] md:h-screen
       `}>
         
-        {/* EN-TÊTE : Logo + Titre */}
+        {/* EN-TÊTE */}
         <div className="p-6 pb-8 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
                 {user.logo ? (
@@ -120,7 +122,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">Gestion de factures</p>
                 </div>
             </div>
-            {/* Bouton fermer sur mobile uniquement */}
             <button 
               onClick={() => setIsMobileOpen(false)}
               className="md:hidden p-2 text-slate-400 hover:bg-slate-50 rounded-lg active:scale-95 transition-transform"
@@ -129,9 +130,8 @@ const Sidebar: React.FC<SidebarProps> = ({
             </button>
         </div>
 
-        {/* NAVIGATION SCROLLABLE */}
+        {/* NAVIGATION */}
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto overflow-x-hidden touch-pan-y">
-            {/* Section Principale */}
             <div className="mb-6">
                 <p className="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Principal</p>
                 {navItems.map((item) => (
@@ -145,7 +145,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                         }`}
                     >
                         <div className="flex items-center">
-                            {/* Icône (avec gestion de couleur si verrouillé) */}
                             <item.icon className={`w-5 h-5 mr-3 transition-colors ${
                                 currentRoute === item.id 
                                 ? 'text-brand-600' 
@@ -154,7 +153,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                             <span className={item.locked ? 'text-slate-400' : ''}>{item.label}</span>
                         </div>
                         
-                        {/* 👇 GESTION DU CADENAS OU DE LA FLÈCHE */}
                         {item.locked ? (
                             <Lock className="w-3.5 h-3.5 text-slate-300" />
                         ) : (
@@ -194,8 +192,9 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
         </nav>
 
-        {/* WIDGET QUOTA & UPSELL */}
+        {/* WIDGETS BAS DE PAGE */}
         <div className="px-4 mb-4 mt-auto pt-4 flex-shrink-0">
+            
             {/* Widget Quota */}
             {user.plan !== 'business' ? (
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 mb-3">
@@ -241,6 +240,19 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 </div>
             )}
+
+            {/* 👇 BOUTON ADMIN (Visible uniquement pour toi) */}
+            {user.email === MY_ADMIN_EMAIL && (
+                <div className="mt-3">
+                    <button
+                        onClick={() => { onChangeRoute(AppRoute.ADMIN); setIsMobileOpen(false); }}
+                        className="w-full flex items-center justify-center px-4 py-2 text-xs font-bold text-red-100 bg-red-600/90 rounded-lg hover:bg-red-600 transition-all shadow-md animate-in fade-in"
+                    >
+                        <ShieldCheck className="w-3.5 h-3.5 mr-2" />
+                        Admin Panel
+                    </button>
+                </div>
+            )}
         </div>
 
         {/* PIED DE PAGE : PROFIL */}
@@ -255,15 +267,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </div>
             </div>
             
-            {/* BOUTON DECONNEXION BLINDÉ POUR MOBILE */}
             <button 
                 onClick={(e) => {
-                    // Empêche le clic de traverser ou de double-cliquer
                     e.preventDefault();
                     e.stopPropagation();
-                    
                     setIsMobileOpen(false); 
-                    onLogout(); // Appelle la fonction "Hard Refresh" de App.tsx
+                    onLogout(); 
                 }}
                 className="flex items-center justify-center w-full px-4 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-red-600 active:bg-slate-100 active:scale-95 transition-all shadow-sm touch-manipulation"
             >
