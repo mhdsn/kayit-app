@@ -1,6 +1,6 @@
 import React from 'react';
 import { User, UserPlan } from '../types';
-import { Check, X, Zap, Sparkles, Crown, ArrowRight } from 'lucide-react';
+import { Check, X as XIcon, Sparkles, Zap, Crown } from 'lucide-react';
 
 interface PricingProps {
   user: User;
@@ -10,157 +10,195 @@ interface PricingProps {
 
 const Pricing: React.FC<PricingProps> = ({ user, onUpgrade, onDowngrade }) => {
   
-  const plans = [
-    {
-      id: 'starter',
-      name: 'Starter',
-      price: 'Gratuit',
-      icon: Zap,
-      description: 'Pour tester Kayit sans friction.',
-      features: [
-        '10 factures / mois',
-        'Génération PDF standard',
-        'Numérotation automatique',
-      ],
-      missing: [
-        'PDF sans logo Kayit',
-        'Gestion des Dépenses',
-        'Analyse Financière & Marges',
-        'Support prioritaire'
-      ]
-    },
-    {
-      id: 'pro',
-      name: 'Pro',
-      price: '9 $US',
-      period: '/mois',
-      icon: Sparkles,
-      description: 'Pour les freelances actifs.',
-      features: [
-        '100 factures / mois',
-        'PDF sans logo Kayit',
-        'Historique illimité',
-        'Support standard'
-      ],
-      missing: [
-        'Gestion des Dépenses',
-        'Analyse Financière & Marges',
-        'Calcul du Bénéfice Net'
-      ]
-    },
-    {
-      id: 'business',
-      name: 'Business',
-      price: '25 $US',
-      period: '/mois',
-      icon: Crown,
-      popular: true,
-      description: 'Pour piloter votre rentabilité.',
-      features: [
-        'Factures illimitées',
-        'PDF 100% Personnalisé',
-        'Gestion des Dépenses', 
-        'Analyse Financière (Bénéfices)', 
-        'Calcul des Marges en temps réel', 
-        'Support prioritaire'
-      ],
-      missing: []
-    }
-  ];
+  // Tes liens Stripe de base (Inchangés)
+  const STRIPE_LINKS = {
+    pro: "https://buy.stripe.com/test_14A00iaAd7Ks18M6QZdQQ00",
+    business: "https://buy.stripe.com/test_eVq8wO9w9d4MbNq8Z7dQQ01"
+  };
+
+  const handleSubscribe = (planId: string) => {
+      // 1. Si c'est le plan Starter, on utilise la fonction interne
+      if (planId === 'starter') {
+          onDowngrade();
+          return;
+      }
+
+      // 2. Redirection vers Stripe pour PRO et BUSINESS
+      if (planId === 'pro' || planId === 'business') {
+          const baseUrl = STRIPE_LINKS[planId as keyof typeof STRIPE_LINKS];
+          
+          if (baseUrl) {
+              const finalLink = `${baseUrl}?prefilled_email=${encodeURIComponent(user.email)}`;
+              window.location.href = finalLink;
+          } else {
+              alert("Erreur: Lien de paiement introuvable");
+          }
+      }
+  };
+
+  const PlanCard = ({ 
+    planId, 
+    title, 
+    priceDisplay, // Changé pour permettre l'affichage "$US" exact de l'image
+    description, 
+    features, 
+    icon: Icon, 
+    isPopular, 
+    colorClass,
+    borderColor
+  }: any) => {
+    const isCurrentPlan = user.plan === planId;
+    
+    // Logique de changement de plan
+    const isDowngrade = (user.plan === 'business' && (planId === 'pro' || planId === 'starter')) || 
+                        (user.plan === 'pro' && planId === 'starter');
+    
+    return (
+      <div className={`relative flex flex-col p-8 rounded-3xl transition-all duration-300 h-full ${
+        planId === 'business' 
+          ? 'bg-[#0f172a] text-white shadow-2xl scale-105 z-10 ring-1 ring-white/10' 
+          : `bg-white text-slate-900 shadow-card border hover:shadow-lg ${borderColor || 'border-slate-200'}`
+      }`}>
+        {isPopular && (
+          <div className="absolute -top-4 right-0 left-0 flex justify-center">
+             <span className="bg-[#6366f1] text-white text-[11px] font-bold px-4 py-1.5 rounded-full uppercase tracking-wider shadow-lg">
+               Recommandé
+             </span>
+          </div>
+        )}
+
+        <div className="mb-6">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-5 ${
+                planId === 'business' ? 'bg-white/10' : 'bg-slate-50 border border-slate-100'
+            }`}>
+                <Icon className={`w-6 h-6 ${colorClass}`} />
+            </div>
+            <h3 className="text-xl font-bold font-display tracking-tight">{title}</h3>
+            <p className={`text-sm mt-2 leading-relaxed ${planId === 'business' ? 'text-slate-400' : 'text-slate-500'}`}>
+                {description}
+            </p>
+        </div>
+
+        <div className="mb-8">
+            <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-extrabold tracking-tight">
+                    {priceDisplay}
+                </span>
+                {planId !== 'starter' && (
+                    <span className={`text-sm font-medium ${planId === 'business' ? 'text-slate-500' : 'text-slate-400'}`}>/mois</span>
+                )}
+            </div>
+        </div>
+
+        <div className="flex-1">
+            <ul className="space-y-4 mb-8">
+                {features.map((feature: any, idx: number) => (
+                    <li key={idx} className="flex items-start gap-3">
+                        <div className={`mt-0.5 shrink-0 ${
+                            feature.included 
+                                ? (planId === 'business' ? 'text-emerald-400' : 'text-emerald-500') 
+                                : (planId === 'business' ? 'text-slate-700' : 'text-slate-300')
+                        }`}>
+                            {feature.included ? <Check className="w-4 h-4" strokeWidth={3} /> : <XIcon className="w-4 h-4" />}
+                        </div>
+                        <span className={`text-sm font-medium ${
+                            feature.included 
+                                ? (planId === 'business' ? 'text-slate-200' : 'text-slate-700')
+                                : (planId === 'business' ? 'text-slate-600' : 'text-slate-400 line-through decoration-slate-300/50')
+                        }`}>
+                            {feature.text}
+                        </span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+
+        <button
+            onClick={() => {
+                if (isCurrentPlan) return;
+                handleSubscribe(planId);
+            }}
+            disabled={isCurrentPlan}
+            className={`w-full py-3.5 px-4 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+                isCurrentPlan
+                    ? (planId === 'business' ? 'bg-white/10 text-white/50 border border-white/5 cursor-default' : 'bg-slate-100 text-slate-400 cursor-default')
+                    : planId === 'business'
+                        ? 'bg-white text-slate-900 hover:bg-slate-100' // Bouton blanc pour le plan Business
+                        : 'bg-[#0f172a] text-white hover:bg-slate-800' // Bouton noir pour les autres
+            }`}
+        >
+            {isCurrentPlan ? 'Plan actuel' : isDowngrade ? 'Passer au ' + title.toLowerCase() : (planId === 'starter' ? 'Passer au gratuit' : 'Mettre à niveau ->')}
+        </button>
+      </div>
+    );
+  };
 
   return (
-    <div className="pb-20 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="text-center space-y-4 max-w-2xl mx-auto">
-        <h2 className="text-4xl font-bold text-slate-900 font-display">
-          Des tarifs simples et transparents
-        </h2>
-        <p className="text-slate-500 text-lg">
-          Commencez gratuitement, évoluez selon vos besoins. Passez au niveau Business pour maîtriser vos coûts et vos bénéfices.
+    <div className="max-w-7xl mx-auto py-8 px-4 pb-20">
+      <div className="text-center space-y-4 mb-16">
+        <h2 className="text-4xl font-bold text-slate-900 font-display tracking-tight">Choisissez votre plan</h2>
+        <p className="text-slate-500 max-w-2xl mx-auto text-lg">
+            Des solutions flexibles pour les freelances et les entreprises en croissance.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto pt-8">
-        {plans.map((plan) => {
-          const isCurrent = user.plan === plan.id;
-          const isBusiness = plan.id === 'business';
+      <div className="grid md:grid-cols-3 gap-6 lg:gap-8 items-stretch pt-4">
+        {/* PLAN STARTER */}
+        <PlanCard 
+            planId="starter"
+            title="Starter"
+            priceDisplay="Gratuit"
+            description="Pour tester Kayit sans friction."
+            icon={Zap}
+            colorClass="text-slate-900"
+            features={[
+                { text: "10 factures / mois", included: true },
+                { text: "Génération PDF standard", included: true },
+                { text: "Numérotation automatique", included: true },
+                { text: "PDF sans logo Kayit", included: false },
+                { text: "Gestion des Dépenses", included: false },
+                { text: "Analyse Financière & Marges", included: false },
+                { text: "Support prioritaire", included: false },
+            ]}
+        />
+        
+        {/* PLAN PRO */}
+        <PlanCard 
+            planId="pro"
+            title="Pro"
+            priceDisplay="9 $US"
+            description="Pour les freelances actifs."
+            icon={Sparkles}
+            colorClass="text-slate-900"
+            features={[
+                { text: "100 factures / mois", included: true },
+                { text: "PDF sans logo Kayit", included: true },
+                { text: "Historique illimité", included: true },
+                { text: "Support standard", included: true },
+                { text: "Gestion des Dépenses", included: false },
+                { text: "Analyse Financière & Marges", included: false },
+                { text: "Calcul du Bénéfice Net", included: false },
+            ]}
+        />
 
-          return (
-            <div 
-              key={plan.id}
-              className={`relative flex flex-col p-8 rounded-3xl transition-all duration-300 ${
-                isBusiness 
-                  ? 'bg-slate-900 text-white shadow-2xl scale-105 border-0' 
-                  : 'bg-white border border-slate-200 hover:shadow-xl hover:-translate-y-1'
-              }`}
-            >
-              {isBusiness && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg">
-                  Recommandé
-                </div>
-              )}
-
-              <div className="mb-8">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 ${
-                  isBusiness ? 'bg-white/10 text-white' : 'bg-slate-50 text-slate-900'
-                }`}>
-                  <plan.icon className="w-6 h-6" />
-                </div>
-                <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
-                <p className={`text-sm mb-6 ${isBusiness ? 'text-slate-400' : 'text-slate-500'}`}>
-                  {plan.description}
-                </p>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-bold tracking-tight">{plan.price}</span>
-                  {plan.period && <span className={`text-sm ${isBusiness ? 'text-slate-400' : 'text-slate-500'}`}>{plan.period}</span>}
-                </div>
-              </div>
-
-              <div className="flex-1 space-y-4 mb-8">
-                {plan.features.map((feature, i) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className={`mt-0.5 p-0.5 rounded-full ${isBusiness ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'}`}>
-                      <Check className="w-3 h-3" />
-                    </div>
-                    <span className={`text-sm ${isBusiness ? 'text-slate-300' : 'text-slate-600'}`}>{feature}</span>
-                  </div>
-                ))}
-                {plan.missing.map((feature, i) => (
-                  <div key={i} className="flex items-start gap-3 opacity-50">
-                    <div className={`mt-0.5 p-0.5 rounded-full ${isBusiness ? 'bg-slate-700 text-slate-500' : 'bg-slate-100 text-slate-400'}`}>
-                      <X className="w-3 h-3" />
-                    </div>
-                    <span className={`text-sm ${isBusiness ? 'text-slate-500' : 'text-slate-400'}`}>{feature}</span>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                onClick={() => {
-                  if (isCurrent) return;
-                  if (plan.id === 'starter') onDowngrade();
-                  else onUpgrade(plan.id as any);
-                }}
-                disabled={isCurrent}
-                className={`w-full py-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-                  isCurrent
-                    ? 'bg-slate-100 text-slate-400 cursor-default'
-                    : isBusiness
-                    ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:shadow-lg hover:shadow-violet-500/25 active:scale-95'
-                    : 'bg-slate-900 text-white hover:bg-slate-800 active:scale-95'
-                }`}
-              >
-                {isCurrent ? (
-                  'Plan actuel'
-                ) : (
-                  <>
-                    {plan.id === 'starter' ? 'Passer au gratuit' : 'Mettre à niveau'}
-                    {!isCurrent && plan.id !== 'starter' && <ArrowRight className="w-4 h-4" />}
-                  </>
-                )}
-              </button>
-            </div>
-          );
-        })}
+        {/* PLAN BUSINESS */}
+        <PlanCard 
+            planId="business"
+            title="Business"
+            priceDisplay="25 $US"
+            description="Pour piloter votre rentabilité."
+            icon={Crown}
+            colorClass="text-white"
+            isPopular={true}
+            features={[
+                { text: "Factures illimitées", included: true },
+                { text: "PDF 100% Personnalisé", included: true },
+                { text: "Gestion des Dépenses", included: true },
+                { text: "Analyse Financière (Bénéfices)", included: true },
+                { text: "Calcul des Marges en temps réel", included: true },
+                { text: "Support prioritaire", included: true },
+            ]}
+        />
       </div>
     </div>
   );
