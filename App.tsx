@@ -81,7 +81,6 @@ const App: React.FC = () => {
       if (event === 'SIGNED_IN' && session) {
         setUser(formatUserFromSession(session));
         setShowLanding(false);
-        loadAllData();
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setInvoices([]);
@@ -96,9 +95,30 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ----------------------------------------------------------------
+  // Chargement des données
+  // ----------------------------------------------------------------
+  const loadAllData = useCallback(async () => {
+    if (!user) return;
+    try {
+      const [invData, expData, prodData, cmdData] = await Promise.all([
+        getInvoices(user.id),
+        getExpenses(user.id),
+        getProducts(),
+        getCommandes(),
+      ]);
+      setInvoices(invData || []);
+      setExpenses(expData || []);
+      setProducts(prodData || []);
+      setCommandes(cmdData || []);
+    } catch (error) {
+      console.error("Erreur chargement données:", error);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (user) { loadAllData(); }
-  }, [user]);
+  }, [user, loadAllData]);
 
   // Gestion retour paiement
   useEffect(() => {
@@ -118,26 +138,6 @@ const App: React.FC = () => {
     };
     handlePaymentReturn();
   }, [user]);
-
-  // ----------------------------------------------------------------
-  // Chargement des données
-  // ----------------------------------------------------------------
-  const loadAllData = useCallback(async () => {
-    try {
-      const [invData, expData, prodData, cmdData] = await Promise.all([
-        getInvoices(),
-        getExpenses(),
-        getProducts(),
-        getCommandes(),
-      ]);
-      setInvoices(invData || []);
-      setExpenses(expData || []);
-      setProducts(prodData || []);
-      setCommandes(cmdData || []);
-    } catch (error) {
-      console.error("Erreur chargement données:", error);
-    }
-  }, []);
 
   const reloadProducts = async () => {
     const data = await getProducts();
@@ -208,7 +208,7 @@ const App: React.FC = () => {
     setEditingInvoice(undefined);
     setCurrentRoute(AppRoute.INVOICES);
     showNotification(editingInvoice ? 'Facture mise à jour' : 'Nouvelle facture créée', 'success');
-    await saveInvoice(inv);
+    await saveInvoice(inv, user!.id);
     loadAllData();
   };
 
@@ -222,7 +222,7 @@ const App: React.FC = () => {
 
   const handleAddExpense = async (newExpense: Omit<Expense, 'id'>) => {
     try {
-      const saved = await addExpense(newExpense);
+      const saved = await addExpense(newExpense, user!.id);
       if (saved) { setExpenses([saved, ...expenses]); showNotification("Dépense ajoutée", 'success'); }
     } catch (e) { showNotification("Erreur ajout dépense", 'info'); }
   };
