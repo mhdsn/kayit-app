@@ -1,9 +1,3 @@
-// ================================================================
-// App.tsx — v2 Kayit
-// Ajout des modules Produits et Commandes
-// ✅ Conserve tout le comportement existant
-// ================================================================
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Menu, CheckCircle2, Info, Loader2 } from 'lucide-react';
 import Sidebar from './components/Sidebar';
