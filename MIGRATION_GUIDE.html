@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kayit v2 — Guide de Migration</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.6; }
+  .container { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+  
+  /* Header */
+  .header { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 48px 40px; border-radius: 20px; margin-bottom: 40px; }
+  .header h1 { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+  .header p { font-size: 16px; opacity: 0.85; }
+  .badge { display: inline-block; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-top: 12px; }
+
+  /* TOC */
+  .toc { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 28px; margin-bottom: 40px; }
+  .toc h2 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; margin-bottom: 16px; }
+  .toc ol { padding-left: 20px; space-y: 4px; }
+  .toc li { margin-bottom: 6px; }
+  .toc a { color: #3b82f6; text-decoration: none; font-weight: 500; font-size: 14px; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Sections */
+  .section { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px; margin-bottom: 24px; }
+  .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #f1f5f9; }
+  .section-number { width: 36px; height: 36px; background: #1e3a8a; color: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; flex-shrink: 0; }
+  .section h2 { font-size: 20px; font-weight: 700; color: #0f172a; }
+  .section h3 { font-size: 15px; font-weight: 700; color: #1e293b; margin: 20px 0 10px; }
+  p { margin-bottom: 12px; font-size: 15px; color: #374151; }
+
+  /* Code blocks */
+  .code-block { background: #0f172a; color: #e2e8f0; padding: 20px; border-radius: 12px; font-family: 'Fira Code', 'Courier New', monospace; font-size: 13px; overflow-x: auto; margin: 16px 0; line-height: 1.7; }
+  .code-block .comment { color: #64748b; }
+  .code-block .keyword { color: #93c5fd; }
+  .code-block .string { color: #86efac; }
+  .code-block .type { color: #fcd34d; }
+  pre { white-space: pre; }
+
+  /* Alerts */
+  .alert { padding: 16px 20px; border-radius: 12px; margin: 16px 0; font-size: 14px; }
+  .alert-warning { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+  .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+  .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+  .alert-danger { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+  .alert strong { display: block; margin-bottom: 4px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  th { background: #f8fafc; text-align: left; padding: 10px 14px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; color: #374151; vertical-align: top; }
+  tr:hover td { background: #f8fafc; }
+
+  /* Tags */
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .tag-new { background: #dcfce7; color: #166534; }
+  .tag-modified { background: #fef3c7; color: #92400e; }
+  .tag-unchanged { background: #f1f5f9; color: #64748b; }
+
+  /* Steps */
+  .steps { counter-reset: step; }
+  .step { counter-increment: step; display: flex; gap: 16px; margin-bottom: 20px; }
+  .step-num { width: 32px; height: 32px; background: #3b82f6; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+  .step-content { flex: 1; padding-top: 4px; }
+  .step-content strong { display: block; margin-bottom: 4px; font-size: 15px; }
+  .step-content p { font-size: 14px; }
+
+  /* Architecture diagram */
+  .arch { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+  .arch-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; }
+  .arch-card h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 10px; }
+  .arch-item { font-size: 13px; color: #374151; padding: 4px 0; border-bottom: 1px dashed #e2e8f0; display: flex; justify-content: space-between; }
+  .arch-item:last-child { border-bottom: none; }
+
+  /* Footer */
+  .footer { text-align: center; padding: 40px 0 20px; color: #94a3b8; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>🚀 Kayit v2 — Plan de Migration</h1>
+    <p>Transformation de l'outil de facturation en SaaS complet de gestion de business</p>
+    <span class="badge">Senior Developer Guide — Production Ready</span>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h2>Table des matières</h2>
+    <ol>
+      <li><a href="#overview">Vue d'ensemble des changements</a></li>
+      <li><a href="#architecture">Nouvelle architecture</a></li>
+      <li><a href="#database">Migrations base de données</a></li>
+      <li><a href="#new-files">Nouveaux fichiers à créer</a></li>
+      <li><a href="#modified-files">Fichiers existants à modifier</a></li>
+      <li><a href="#business-logic">Logique métier clé</a></li>
+      <li><a href="#migration-steps">Instructions de migration pas à pas</a></li>
+      <li><a href="#testing">Tests à effectuer</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. OVERVIEW -->
+  <div class="section" id="overview">
+    <div class="section-header">
+      <div class="section-number">1</div>
+      <h2>Vue d'ensemble des changements</h2>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Module</th><th>Statut</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Auth / Supabase</td><td><span class="tag tag-unchanged">Inchangé</span></td><td>Système d'auth conservé intégralement</td></tr>
+        <tr><td>Factures (InvoiceForm, InvoiceList)</td><td><span class="tag tag-unchanged">Inchangé</span></td><td>Logique facture conservée + lien commande ajouté</td></tr>
+        <tr><td>Dépenses (Expenses)</td><td><span class="tag tag-unchanged">Inchangé</span></td><td>Module existant conservé</td></tr>
+        <tr><td>Dashboard</td><td><span class="tag tag-modified">À enrichir</span></td><td>Ajout stats produits + commandes</td></tr>
+        <tr><td>Sidebar</td><td><span class="tag tag-modified">Modifié</span></td><td>2 nouvelles entrées : Produits + Commandes</td></tr>
+        <tr><td>types.ts</td><td><span class="tag tag-modified">Enrichi</span></td><td>Ajout types Product, Commande, CommandeItem</td></tr>
+        <tr><td>App.tsx</td><td><span class="tag tag-modified">Enrichi</span></td><td>Gestion état produits + commandes + navigation</td></tr>
+        <tr><td>AppRoute (enum)</td><td><span class="tag tag-modified">Enrichi</span></td><td>PRODUCTS + ORDERS ajoutés</td></tr>
+        <tr><td>Produits</td><td><span class="tag tag-new">Nouveau</span></td><td>CRUD complet + alertes stock + marge</td></tr>
+        <tr><td>Commandes</td><td><span class="tag tag-new">Nouveau</span></td><td>CRUD + validation + déduction stock</td></tr>
+        <tr><td>productService.ts</td><td><span class="tag tag-new">Nouveau</span></td><td>Service Supabase pour les produits</td></tr>
+        <tr><td>commandeService.ts</td><td><span class="tag tag-new">Nouveau</span></td><td>Service Supabase pour les commandes</td></tr>
+      </tbody>
+    </table>
+
+    <div class="alert alert-success">
+      <strong>✅ Principe fondamental</strong>
+      Toutes les données existantes (factures, dépenses, utilisateurs) sont préservées. La migration est additive : on ajoute de nouvelles tables et colonnes sans toucher à l'existant.
+    </div>
+  </div>
+
+  <!-- 2. ARCHITECTURE -->
+  <div class="section" id="architecture">
+    <div class="section-header">
+      <div class="section-number">2</div>
+      <h2>Nouvelle architecture</h2>
+    </div>
+
+    <div class="arch">
+      <div class="arch-card">
+        <h4>📁 Nouveaux fichiers</h4>
+        <div class="arch-item"><span>components/Products.tsx</span><span class="tag tag-new">new</span></div>
+        <div class="arch-item"><span>components/Orders.tsx</span><span class="tag tag-new">new</span></div>
+        <div class="arch-item"><span>services/productService.ts</span><span class="tag tag-new">new</span></div>
+        <div class="arch-item"><span>services/commandeService.ts</span><span class="tag tag-new">new</span></div>
+      </div>
+      <div class="arch-card">
+        <h4>✏️ Fichiers modifiés</h4>
+        <div class="arch-item"><span>types.ts</span><span class="tag tag-modified">modified</span></div>
+        <div class="arch-item"><span>App.tsx</span><span class="tag tag-modified">modified</span></div>
+        <div class="arch-item"><span>components/Sidebar.tsx</span><span class="tag tag-modified">modified</span></div>
+      </div>
+      <div class="arch-card">
+        <h4>🗄️ Nouvelles tables SQL</h4>
+        <div class="arch-item"><span>products</span><span class="tag tag-new">new</span></div>
+        <div class="arch-item"><span>commandes</span><span class="tag tag-new">new</span></div>
+        <div class="arch-item"><span>commande_items</span><span class="tag tag-new">new</span></div>
+      </div>
+      <div class="arch-card">
+        <h4>🔧 SQL alterations</h4>
+        <div class="arch-item"><span>invoices (+ commande_id)</span><span class="tag tag-modified">ALTER</span></div>
+        <div class="arch-item"><span>expenses (+ titre, user_id)</span><span class="tag tag-modified">ALTER</span></div>
+        <div class="arch-item"><span>Trigger stock déduction</span><span class="tag tag-new">new</span></div>
+      </div>
+    </div>
+
+    <h3>Flux principal : Commande → Stock → Facture</h3>
+    <div class="code-block"><pre>
+  Créer Commande (statut: en_attente)
+       │
+       ▼
+  Valider Commande
+       │
+       ├── [Trigger SQL] Déduire stock automatiquement
+       │
+       └── [App] Proposer génération facture
+                │
+                ▼
+          InvoiceForm pré-rempli
+                │
+                ▼
+          Facture sauvegardée + liée à la commande
+
+  Si annulation d'une commande VALIDÉE:
+  [Trigger SQL] Restaure le stock automatiquement</pre></div>
+  </div>
+
+  <!-- 3. DATABASE -->
+  <div class="section" id="database">
+    <div class="section-header">
+      <div class="section-number">3</div>
+      <h2>Migrations base de données</h2>
+    </div>
+
+    <div class="alert alert-danger">
+      <strong>⚠️ Avant tout</strong>
+      Faites un snapshot/backup de votre base Supabase avant d'exécuter la migration. Dashboard Supabase → Settings → Database → Backups.
+    </div>
+
+    <h3>Table products</h3>
+    <div class="code-block"><pre><span class="keyword">CREATE TABLE IF NOT EXISTS</span> products (
+  id          <span class="type">UUID PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+  user_id     <span class="type">UUID NOT NULL REFERENCES</span> auth.users(id) ON DELETE CASCADE,
+  nom         <span class="type">TEXT NOT NULL</span>,
+  prix_achat  <span class="type">NUMERIC(12, 2) NOT NULL DEFAULT</span> 0,
+  prix_vente  <span class="type">NUMERIC(12, 2) NOT NULL DEFAULT</span> 0,
+  stock       <span class="type">INTEGER NOT NULL DEFAULT</span> 0,
+  categorie   <span class="type">TEXT</span>,
+  image_url   <span class="type">TEXT</span>,
+  created_at  <span class="type">TIMESTAMPTZ DEFAULT</span> NOW()
+);
+
+<span class="comment">-- RLS : chaque utilisateur ne voit que ses produits</span>
+<span class="keyword">ALTER TABLE</span> products <span class="keyword">ENABLE ROW LEVEL SECURITY</span>;</pre></div>
+
+    <h3>Table commandes</h3>
+    <div class="code-block"><pre><span class="keyword">CREATE TABLE IF NOT EXISTS</span> commandes (
+  id                <span class="type">UUID PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+  user_id           <span class="type">UUID NOT NULL REFERENCES</span> auth.users(id) ON DELETE CASCADE,
+  client_nom        <span class="type">TEXT NOT NULL</span>,
+  client_telephone  <span class="type">TEXT</span>,
+  statut            <span class="type">TEXT NOT NULL DEFAULT</span> <span class="string">'en_attente'</span>
+                    <span class="keyword">CHECK</span> (statut IN (<span class="string">'en_attente'</span>, <span class="string">'validee'</span>, <span class="string">'annulee'</span>)),
+  mode_paiement     <span class="type">TEXT</span>,
+  total             <span class="type">NUMERIC(12, 2) NOT NULL DEFAULT</span> 0,
+  invoice_id        <span class="type">UUID</span>,
+  notes             <span class="type">TEXT</span>,
+  created_at        <span class="type">TIMESTAMPTZ DEFAULT</span> NOW()
+);</pre></div>
+
+    <h3>Table commande_items</h3>
+    <div class="code-block"><pre><span class="keyword">CREATE TABLE IF NOT EXISTS</span> commande_items (
+  id              <span class="type">UUID PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+  commande_id     <span class="type">UUID NOT NULL REFERENCES</span> commandes(id) ON DELETE CASCADE,
+  produit_id      <span class="type">UUID NOT NULL REFERENCES</span> products(id),
+  quantite        <span class="type">INTEGER NOT NULL DEFAULT</span> 1,
+  prix_unitaire   <span class="type">NUMERIC(12, 2) NOT NULL DEFAULT</span> 0
+);</pre></div>
+
+    <h3>Trigger : gestion automatique du stock</h3>
+    <div class="code-block"><pre><span class="keyword">CREATE OR REPLACE FUNCTION</span> handle_commande_status_change()
+<span class="keyword">RETURNS TRIGGER AS</span> $$
+<span class="keyword">BEGIN</span>
+  <span class="comment">-- Validation → déduire le stock</span>
+  <span class="keyword">IF</span> NEW.statut = <span class="string">'validee'</span> AND OLD.statut != <span class="string">'validee'</span> THEN
+    <span class="keyword">UPDATE</span> products p
+    SET stock = p.stock - ci.quantite
+    FROM commande_items ci
+    WHERE ci.commande_id = NEW.id AND ci.produit_id = p.id;
+  END IF;
+
+  <span class="comment">-- Annulation depuis validée → restaurer le stock</span>
+  <span class="keyword">IF</span> NEW.statut = <span class="string">'annulee'</span> AND OLD.statut = <span class="string">'validee'</span> THEN
+    <span class="keyword">UPDATE</span> products p
+    SET stock = p.stock + ci.quantite
+    FROM commande_items ci
+    WHERE ci.commande_id = NEW.id AND ci.produit_id = p.id;
+  END IF;
+
+  <span class="keyword">RETURN</span> NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;</pre></div>
+  </div>
+
+  <!-- 4. NEW FILES -->
+  <div class="section" id="new-files">
+    <div class="section-header">
+      <div class="section-number">4</div>
+      <h2>Nouveaux fichiers à créer</h2>
+    </div>
+
+    <table>
+      <thead><tr><th>Fichier</th><th>Description</th><th>Dépendances</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>services/productService.ts</code></td>
+          <td>CRUD Supabase pour les produits : getProducts, addProduct, updateProduct, deleteProduct, updateStock</td>
+          <td>supabaseClient, types.ts</td>
+        </tr>
+        <tr>
+          <td><code>services/commandeService.ts</code></td>
+          <td>CRUD Supabase commandes : getCommandes (avec JOIN items), createCommande (vérif stock), updateCommandeStatut, deleteCommande</td>
+          <td>supabaseClient, types.ts</td>
+        </tr>
+        <tr>
+          <td><code>components/Products.tsx</code></td>
+          <td>UI complète : liste cards, modale création/édition, alertes stock faible, stats rapides, filtre par catégorie/recherche</td>
+          <td>productService, types.ts</td>
+        </tr>
+        <tr>
+          <td><code>components/Orders.tsx</code></td>
+          <td>UI commandes : liste filtrée par statut, formulaire avec sélection produits, actions valider/annuler/supprimer, bouton génération facture</td>
+          <td>commandeService, types.ts</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="alert alert-info">
+      <strong>📦 Tous ces fichiers sont fournis dans le livrable</strong>
+      Copiez-les directement dans votre projet sans modification. Ils sont compatibles avec votre config TypeScript et Tailwind existante.
+    </div>
+  </div>
+
+  <!-- 5. MODIFIED FILES -->
+  <div class="section" id="modified-files">
+    <div class="section-header">
+      <div class="section-number">5</div>
+      <h2>Fichiers existants à modifier</h2>
+    </div>
+
+    <h3>types.ts — Ajouts</h3>
+    <p>Remplacez votre <code>types.ts</code> par la version fournie. Les changements sont :</p>
+    <ul style="padding-left: 20px; font-size: 14px; color: #374151; margin-bottom: 16px;">
+      <li style="margin-bottom: 6px;">Ajout de l'interface <code>Product</code> et <code>ProductFormData</code></li>
+      <li style="margin-bottom: 6px;">Ajout de <code>Commande</code>, <code>CommandeItem</code>, <code>CommandeFormData</code></li>
+      <li style="margin-bottom: 6px;">Enrichissement de <code>Invoice</code> avec <code>commande_id?</code> et <code>commande_number?</code></li>
+      <li style="margin-bottom: 6px;">Ajout de <code>AppRoute.PRODUCTS</code> et <code>AppRoute.ORDERS</code> dans l'enum</li>
+      <li style="margin-bottom: 6px;">Ajout des constantes <code>COMMANDE_STATUT_LABELS</code>, <code>COMMANDE_STATUT_COLORS</code>, <code>LOW_STOCK_THRESHOLD</code></li>
+      <li>Ajout de <code>formatDate()</code> utilitaire</li>
+    </ul>
+
+    <h3>App.tsx — Changements</h3>
+    <div class="code-block"><pre><span class="comment">// Nouveaux imports</span>
+<span class="keyword">import</span> Products from <span class="string">'./components/Products'</span>;
+<span class="keyword">import</span> Orders from <span class="string">'./components/Orders'</span>;
+<span class="keyword">import</span> { getProducts } from <span class="string">'./services/productService'</span>;
+<span class="keyword">import</span> { getCommandes, updateCommandeStatut } from <span class="string">'./services/commandeService'</span>;
+
+<span class="comment">// Nouveaux états</span>
+<span class="keyword">const</span> [products, setProducts] = useState&lt;Product[]&gt;([]);
+<span class="keyword">const</span> [commandes, setCommandes] = useState&lt;Commande[]&gt;([]);
+
+<span class="comment">// loadAllData() remplace loadData() — charge en parallèle</span>
+<span class="keyword">const</span> loadAllData = async () => {
+  <span class="keyword">const</span> [invData, expData, prodData, cmdData] = await Promise.all([
+    getInvoices(), getExpenses(), getProducts(), getCommandes()
+  ]);
+  <span class="comment">// ...setters</span>
+};</pre></div>
+
+    <h3>Sidebar.tsx — Changements</h3>
+    <p>2 nouvelles entrées de navigation dans <code>navItems</code> :</p>
+    <div class="code-block"><pre><span class="keyword">import</span> { Package, ShoppingCart } from <span class="string">'lucide-react'</span>;
+
+<span class="comment">// Dans navItems :</span>
+{ id: AppRoute.PRODUCTS, label: <span class="string">'Produits'</span>,   icon: Package,      locked: false },
+{ id: AppRoute.ORDERS,   label: <span class="string">'Commandes'</span>, icon: ShoppingCart, locked: false },
+
+<span class="comment">// Navigation réorganisée en 2 sections :</span>
+<span class="comment">// "Principal" : Dashboard, Produits, Commandes, Factures</span>
+<span class="comment">// "Finances"  : Dépenses, Analyse, Créer facture</span></pre></div>
+  </div>
+
+  <!-- 6. BUSINESS LOGIC -->
+  <div class="section" id="business-logic">
+    <div class="section-header">
+      <div class="section-number">6</div>
+      <h2>Logique métier clé</h2>
+    </div>
+
+    <h3>1. Vérification stock avant création commande</h3>
+    <p>Dans <code>commandeService.ts > createCommande()</code> : avant d'insérer en base, on vérifie pour chaque item que <code>stock >= quantite</code>. Si non, une erreur explicite est levée et affichée dans le formulaire.</p>
+
+    <h3>2. Déduction/restauration stock (Trigger SQL)</h3>
+    <p>La gestion du stock est entièrement côté base de données via le trigger <code>trg_commande_status</code>. Cela garantit la cohérence même si plusieurs sessions sont actives simultanément. Le frontend n'a pas besoin de gérer manuellement le stock.</p>
+
+    <h3>3. Génération facture depuis commande</h3>
+    <p>Lorsqu'une commande est validée, le bouton "Générer facture" appelle <code>handleGenerateInvoiceFromCommande()</code> dans <code>App.tsx</code>. Cette fonction construit un objet <code>Invoice</code> pré-rempli (client, items, total, mode de paiement) et ouvre <code>InvoiceForm</code> avec ces données. L'utilisateur peut ajuster puis sauvegarder normalement.</p>
+
+    <h3>4. Alerte stock faible</h3>
+    <p>Le seuil est défini par la constante <code>LOW_STOCK_THRESHOLD = 5</code> dans <code>types.ts</code>. Le composant <code>Products.tsx</code> filtre automatiquement <code>products.filter(p => p.stock &lt; LOW_STOCK_THRESHOLD)</code> et affiche la bannière orange.</p>
+
+    <h3>5. Calcul de marge</h3>
+    <div class="code-block"><pre><span class="comment">// Marge en % = (prix_vente - prix_achat) / prix_vente × 100</span>
+<span class="keyword">const</span> marge = (p: Product) =>
+  p.prix_vente > 0 ? ((p.prix_vente - p.prix_achat) / p.prix_vente * 100) : 0;</pre></div>
+  </div>
+
+  <!-- 7. MIGRATION STEPS -->
+  <div class="section" id="migration-steps">
+    <div class="section-header">
+      <div class="section-number">7</div>
+      <h2>Instructions de migration pas à pas</h2>
+    </div>
+
+    <div class="alert alert-warning">
+      <strong>Durée estimée : 30-45 minutes</strong>
+      Migration non-destructive. Les utilisateurs existants ne perdront aucune donnée.
+    </div>
+
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <strong>Backup Supabase</strong>
+          <p>Dashboard Supabase → Settings → Database → cliquez "Create backup". Attendez la confirmation.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <strong>Exécuter la migration SQL</strong>
+          <p>Dans Supabase → SQL Editor → New query. Copiez le contenu du fichier <code>migration_kayit_v2.sql</code> fourni. Cliquez Run. Vérifiez qu'il n'y a aucune erreur rouge.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <strong>Vérifier les nouvelles tables</strong>
+          <p>Supabase → Table Editor → Vérifiez que <code>products</code>, <code>commandes</code>, <code>commande_items</code> apparaissent. Vérifiez que la table <code>invoices</code> a maintenant une colonne <code>commande_id</code>.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <strong>Remplacer types.ts</strong>
+          <p>Dans votre projet local, remplacez <code>types.ts</code> par la version fournie dans le livrable.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <strong>Ajouter les nouveaux services</strong>
+          <p>Copiez <code>services/productService.ts</code> et <code>services/commandeService.ts</code> dans le dossier <code>services/</code> de votre projet.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-content">
+          <strong>Ajouter les nouveaux composants</strong>
+          <p>Copiez <code>components/Products.tsx</code> et <code>components/Orders.tsx</code> dans le dossier <code>components/</code>.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-content">
+          <strong>Remplacer Sidebar.tsx et App.tsx</strong>
+          <p>Remplacez les fichiers existants par les versions v2 fournies. Ces fichiers conservent toute la logique existante et ajoutent les nouveaux modules.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">8</div>
+        <div class="step-content">
+          <strong>Build et test local</strong>
+          <p>Exécutez <code>npm run dev</code>. Vérifiez que l'app compile sans erreur TypeScript. Testez la navigation vers Produits et Commandes.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">9</div>
+        <div class="step-content">
+          <strong>Test end-to-end</strong>
+          <p>Créez un produit avec stock=10 → Créez une commande avec 3 unités de ce produit → Validez la commande → Vérifiez que le stock est passé à 7 → Générez la facture → Téléchargez le PDF.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">10</div>
+        <div class="step-content">
+          <strong>Déploiement</strong>
+          <p>Une fois validé en local, déployez normalement (<code>npm run build</code> puis upload sur votre hébergeur Netlify/Vercel/etc.).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. TESTING -->
+  <div class="section" id="testing">
+    <div class="section-header">
+      <div class="section-number">8</div>
+      <h2>Checklist de tests</h2>
+    </div>
+
+    <table>
+      <thead><tr><th>Test</th><th>Résultat attendu</th></tr></thead>
+      <tbody>
+        <tr><td>Créer un produit</td><td>Apparaît dans la liste, stock correct, marge calculée</td></tr>
+        <tr><td>Modifier un produit</td><td>Valeurs mises à jour en base et en UI</td></tr>
+        <tr><td>Produit stock < 5</td><td>Badge rouge + bannière alerte visible</td></tr>
+        <tr><td>Créer commande avec produit (stock 10, qté 3)</td><td>Commande créée, statut "en attente"</td></tr>
+        <tr><td>Tenter qté > stock dans formulaire commande</td><td>Message d'erreur rouge sous le champ</td></tr>
+        <tr><td>Valider commande</td><td>Stock passe de 10 à 7, statut "validée"</td></tr>
+        <tr><td>Annuler commande validée</td><td>Stock restauré à 10</td></tr>
+        <tr><td>Cliquer "Générer facture" sur commande validée</td><td>InvoiceForm pré-rempli avec les données de la commande</td></tr>
+        <tr><td>Sauvegarder la facture</td><td>Facture apparaît dans l'onglet Factures</td></tr>
+        <tr><td>Télécharger le PDF de la facture</td><td>PDF valide avec informations complètes</td></tr>
+        <tr><td>Naviguer vers toutes les pages</td><td>Aucune erreur console, affichage correct</td></tr>
+        <tr><td>Données utilisateurs existantes</td><td>Factures et dépenses précédentes toujours visibles</td></tr>
+      </tbody>
+    </table>
+
+    <div class="alert alert-success" style="margin-top: 24px;">
+      <strong>🎉 Migration terminée !</strong>
+      Kayit est maintenant un SaaS complet de gestion de business. Les modules Produits, Commandes, Dépenses et Factures sont entièrement opérationnels et interconnectés.
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Kayit v2 — Architecture par Claude Sonnet 4.6 | Production Ready | 2025</p>
+  </div>
+
+</div>
+</body>
+</html>
