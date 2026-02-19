@@ -19,14 +19,17 @@ export interface Invoice {
   clientEmail: string;
   clientAddress?: string;
   date: string;
-  dueDate: string;
+  dueDate?: string;
   items: InvoiceItem[];
+  subtotal: number;
+  taxRate: number;
+  taxAmount: number;
   total: number;
   status: 'paid' | 'pending' | 'overdue';
   paymentMethod?: string;
   notes?: string;
   currency: string;
-  // NOUVEAU v2: lien avec une commande
+  userId?: string;
   commande_id?: string;
   commande_number?: string;
 }
@@ -63,7 +66,6 @@ export interface Client {
 
 export interface Expense {
   id: string;
-  titre?: string;
   description: string;
   amount: number;
   category: string;

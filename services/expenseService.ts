@@ -1,37 +1,48 @@
 import { supabase } from './supabaseClient';
 import { Expense } from '../types';
 
-export const getExpenses = async (): Promise<Expense[]> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+export const getExpenses = async (userId: string): Promise<Expense[]> => {
+  if (!userId) return [];
 
   const { data, error } = await supabase
     .from('expenses')
     .select('*')
+    .eq('user_id', userId)
     .order('date', { ascending: false });
 
   if (error) {
     console.error('Erreur chargement dépenses:', error);
     return [];
   }
+
   return data || [];
 };
 
-export const addExpense = async (expense: Omit<Expense, 'id'>) => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+export const addExpense = async (expense: Omit<Expense, 'id'>, userId: string) => {
+  if (!userId) throw new Error("Utilisateur non connecté.");
 
   const { data, error } = await supabase
     .from('expenses')
-    .insert([{ ...expense, user_id: user.id }])
+    .insert([{ ...expense, user_id: userId }])
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error("Erreur ajout dépense:", error);
+    throw error;
+  }
+
   return data;
 };
 
 export const deleteExpense = async (id: string) => {
-  const { error } = await supabase.from('expenses').delete().eq('id', id);
-  if (error) throw error;
+  const { error } = await supabase
+    .from('expenses')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error("Erreur suppression dépense:", error);
+    throw error;
+  }
 };

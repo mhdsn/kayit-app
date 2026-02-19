@@ -1,85 +1,76 @@
-import { Invoice } from '../types';
 import { supabase } from './supabaseClient';
+import { Invoice } from '../types';
 
-// Charger toutes les factures depuis Supabase
-export const getInvoices = async (): Promise<Invoice[]> => {
-  // 1. On récupère l'utilisateur actuel pour filtrer
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) return [];
+export const getInvoices = async (userId: string): Promise<Invoice[]> => {
+  if (!userId) return [];
 
   const { data, error } = await supabase
     .from('invoices')
     .select('*')
-    .eq('user_id', user.id) // 🔒 Sécurité supplémentaire : on filtre par user
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Erreur lors du chargement des factures:', error);
-    return [];
+    console.error("Erreur chargement factures:", error);
+    throw error;
   }
 
   if (!data) return [];
-
-  // 2. Mapping : Comme ta base de données utilise déjà le camelCase (grâce aux guillemets dans le SQL)
-  // On récupère les données directement.
-  return data.map((inv: any) => ({
+  
+  return data.map(inv => ({
     id: inv.id,
     number: inv.number,
-    clientName: inv.clientName,       // Correction : clientName (pas client_name)
-    clientEmail: inv.clientEmail,     // Correction : clientEmail
-    clientAddress: inv.clientAddress, // Ajouté
-    date: inv.date,
-    dueDate: inv.dueDate,             // Correction : dueDate
-    status: inv.status,
-    currency: inv.currency,
-    items: inv.items,                 // Supabase gère le JSON automatiquement
-    total: inv.total,
-    notes: inv.notes,
-    paymentMethod: inv.paymentMethod  // Ajouté
+    clientName: inv.client_name || 'Client Inconnu',
+    clientEmail: inv.client_email || '',
+    clientAddress: inv.client_address || '',
+    date: inv.date || new Date().toISOString().split('T')[0],
+    dueDate: inv.due_date || undefined,
+    status: inv.status || 'pending',
+    currency: inv.currency || 'XOF',
+    items: inv.items || [],
+    subtotal: inv.subtotal || 0,
+    taxRate: inv.tax_rate || 0,
+    taxAmount: inv.tax_amount || 0,
+    total: inv.total || 0,
+    notes: inv.notes || undefined,
+    paymentMethod: inv.payment_method || undefined,
+    userId: inv.user_id
   }));
 };
 
-// Sauvegarder une facture (Création ou Mise à jour)
-export const saveInvoice = async (invoice: Invoice) => {
-  // 1. Qui est connecté ?
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    console.error("Erreur: Utilisateur non connecté");
-    return;
-  }
+export const saveInvoice = async (invoice: Invoice, userId: string) => {
+  if (!userId) throw new Error("Utilisateur non connecté.");
 
-  // 2. On prépare l'objet pour la base de données
-  // On utilise les clés exactes de la table SQL (camelCase)
   const invoiceData = {
     id: invoice.id,
-    user_id: user.id,
+    user_id: userId,
     number: invoice.number,
-    "clientName": invoice.clientName,       // Correspond à la colonne SQL "clientName"
-    "clientEmail": invoice.clientEmail,
-    "clientAddress": invoice.clientAddress,
+    client_name: invoice.clientName,
+    client_email: invoice.clientEmail,
+    client_address: invoice.clientAddress,
     date: invoice.date,
-    "dueDate": invoice.dueDate || null,     // Gestion du null pour l'optionnel
+    due_date: invoice.dueDate || null,
     status: invoice.status,
     currency: invoice.currency,
     items: invoice.items,
-    total: invoice.total,
+    subtotal: invoice.subtotal || 0,
+    tax_rate: invoice.taxRate || 0,
+    tax_amount: invoice.taxAmount || 0,
+    total: invoice.total || 0,
     notes: invoice.notes,
-    "paymentMethod": invoice.paymentMethod
+    payment_method: invoice.paymentMethod
   };
 
-  // 3. On envoie à Supabase
   const { error } = await supabase
     .from('invoices')
     .upsert(invoiceData);
 
   if (error) {
-    console.error('Erreur sauvegarde:', error);
-    throw error;
+    console.error('Erreur sauvegarde:', error.message);
+    throw new Error("Erreur lors de la sauvegarde : " + error.message);
   }
 };
 
-// Supprimer une facture
 export const deleteInvoice = async (id: string) => {
   const { error } = await supabase
     .from('invoices')

@@ -2,13 +2,13 @@ import { supabase } from './supabaseClient';
 import { Client } from '../types';
 
 // Récupérer tous les clients de l'utilisateur
-export const getClients = async (): Promise<Client[]> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+export const getClients = async (userId: string): Promise<Client[]> => {
+  if (!userId) return [];
 
   const { data, error } = await supabase
     .from('clients')
     .select('*')
+    .eq('user_id', userId)
     .order('name', { ascending: true });
 
   if (error) {
@@ -19,20 +19,19 @@ export const getClients = async (): Promise<Client[]> => {
   return data || [];
 };
 
-// Sauvegarder ou Mettre à jour un client (Basé sur le nom)
-export const upsertClient = async (client: Client) => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user || !client.name) return;
+// Sauvegarder ou Mettre à jour un client
+export const upsertClient = async (client: Client, userId: string) => {
+  if (!userId || !client.name) return;
 
   const { error } = await supabase
     .from('clients')
     .upsert({ 
-        user_id: user.id,
+        user_id: userId,
         name: client.name,
         email: client.email,
         address: client.address,
         phone: client.phone
-    }, { onConflict: 'user_id, name' }); // Utilise la contrainte unique qu'on a créée en SQL
+    }, { onConflict: 'user_id, name' });
 
   if (error) {
     console.error('Erreur sauvegarde client:', error);
