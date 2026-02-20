@@ -2,7 +2,8 @@ import { supabase } from './supabaseClient';
 import { Expense } from '../types';
 
 export const getExpenses = async (): Promise<Expense[]> => {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) return [];
 
   const { data, error } = await supabase
@@ -18,7 +19,8 @@ export const getExpenses = async (): Promise<Expense[]> => {
 };
 
 export const addExpense = async (expense: Omit<Expense, 'id'>) => {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) return null;
 
   const { data, error } = await supabase

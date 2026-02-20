@@ -3,8 +3,9 @@ import { supabase } from './supabaseClient';
 
 // Charger toutes les factures depuis Supabase
 export const getInvoices = async (): Promise<Invoice[]> => {
-  // 1. On récupère l'utilisateur actuel pour filtrer
-  const { data: { user } } = await supabase.auth.getUser();
+  // 1. On récupère l'utilisateur depuis la session locale (pas de requête réseau)
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   
   if (!user) return [];
 
@@ -42,8 +43,9 @@ export const getInvoices = async (): Promise<Invoice[]> => {
 
 // Sauvegarder une facture (Création ou Mise à jour)
 export const saveInvoice = async (invoice: Invoice) => {
-  // 1. Qui est connecté ?
-  const { data: { user } } = await supabase.auth.getUser();
+  // 1. Qui est connecté ? (session locale, pas de requête réseau)
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) {
     console.error("Erreur: Utilisateur non connecté");
     return;

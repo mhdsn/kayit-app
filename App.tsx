@@ -82,12 +82,12 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         console.log("Auth Event:", event);
         
+        // On n'agit que sur les événements utiles pour éviter les boucles
         if (event === 'SIGNED_IN' && session) {
             setUser(formatUserFromSession(session));
             setShowLanding(false); // Force l'affichage du Dashboard
             setAuthInitialMode('login'); 
-            // Si on vient de se connecter, on charge les données
-            loadData();
+            // Note: loadData() est géré par useEffect([user]) ci-dessous, pas besoin de le rappeler ici
         } else if (event === 'SIGNED_OUT') {
             setUser(null);
             setInvoices([]);
