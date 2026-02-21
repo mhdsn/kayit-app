@@ -9,38 +9,60 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedChanges }) => {
-  const [formData, setFormData] = useState<User>(user);
+  // ✅ FIX 1 : Normaliser les valeurs par défaut dès l'init pour éviter les faux positifs
+  const normalizeUser = (u: User): User => ({
+    ...u,
+    currency: u.currency || 'XOF',
+    brandColor: u.brandColor || '#2563EB',
+    name: u.name || '',
+    email: u.email || '',
+    businessName: u.businessName || '',
+    phone: u.phone || '',
+    address: u.address || '',
+    defaultNote: u.defaultNote || '',
+  });
+
+  const [formData, setFormData] = useState<User>(() => normalizeUser(user));
   const [showSuccess, setShowSuccess] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
-  
   const [isDirty, setIsDirty] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isBusiness = user.plan === 'business';
 
-  // 1. EFFET : Détecter les changements ET informer App.tsx
+  // ✅ FIX 2 : Détecter les changements SANS cleanup destructeur et SANS setState inconditionnel
+  // L'ancien code avait :
+  //   - setIsDirty(hasChanges) à chaque exécution (même si la valeur ne changeait pas → re-render inutile)
+  //   - return () => setHasUnsavedChanges(false) comme cleanup → se déclenche à chaque re-render
+  //     → App.tsx re-render → nouveau user prop → Settings re-render → cleanup → boucle infinie
   useEffect(() => {
     const normalize = (val: string | undefined) => val || '';
+    const normalizedUser = normalizeUser(user);
     
     const hasChanges = 
-        normalize(formData.name) !== normalize(user.name) ||
-        normalize(formData.email) !== normalize(user.email) ||
-        normalize(formData.businessName) !== normalize(user.businessName) ||
-        normalize(formData.phone) !== normalize(user.phone) ||
-        normalize(formData.address) !== normalize(user.address) ||
-        normalize(formData.currency) !== normalize(user.currency || 'XOF') ||
-        normalize(formData.brandColor) !== normalize(user.brandColor || '#2563EB') ||
-        normalize(formData.defaultNote) !== normalize(user.defaultNote) ||
-        formData.logo !== user.logo ||
-        formData.signature !== user.signature; // 👈 AJOUT : Détection changement signature
+        normalize(formData.name) !== normalize(normalizedUser.name) ||
+        normalize(formData.email) !== normalize(normalizedUser.email) ||
+        normalize(formData.businessName) !== normalize(normalizedUser.businessName) ||
+        normalize(formData.phone) !== normalize(normalizedUser.phone) ||
+        normalize(formData.address) !== normalize(normalizedUser.address) ||
+        normalize(formData.currency) !== normalize(normalizedUser.currency) ||
+        normalize(formData.brandColor) !== normalize(normalizedUser.brandColor) ||
+        normalize(formData.defaultNote) !== normalize(normalizedUser.defaultNote) ||
+        formData.logo !== normalizedUser.logo ||
+        formData.signature !== normalizedUser.signature;
 
-    setIsDirty(hasChanges);
-    setHasUnsavedChanges(hasChanges);
-
-    return () => setHasUnsavedChanges(false);
+    // ✅ Seulement mettre à jour si la valeur a RÉELLEMENT changé
+    setIsDirty(prev => {
+        if (prev !== hasChanges) {
+            setHasUnsavedChanges(hasChanges);
+            return hasChanges;
+        }
+        return prev;
+    });
+    // ✅ PAS de cleanup ici — c'est lui qui causait la boucle infinie
   }, [formData, user, setHasUnsavedChanges]);
 
-  // 2. EFFET : Protection fermeture navigateur
+  // Protection fermeture navigateur
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
@@ -82,11 +104,10 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
     reader.readAsDataURL(file);
   };
 
-  // 👇 AJOUT : Fonction d'upload pour la signature
   const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-        if (file.size > 1024 * 1024) { // Limite 1MB
+        if (file.size > 1024 * 1024) {
             alert("L'image est trop lourde (max 1MB)");
             return;
         }
@@ -107,10 +128,11 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
     e.preventDefault();
     if (!isDirty) return;
 
-    onUpdateUser(formData);
-    
+    // ✅ FIX 3 : Réinitialiser AVANT l'appel pour éviter le flash "beforeunload"
     setIsDirty(false); 
     setHasUnsavedChanges(false); 
+
+    onUpdateUser(formData);
     
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 3000);
@@ -205,7 +227,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
                  <p className="text-[10px] text-slate-400 mt-1">Cette couleur remplacera le bleu par défaut sur vos documents.</p>
             </div>
 
-            {/* 👇 AJOUT : SECTION CACHET / SIGNATURE */}
+            {/* SECTION CACHET / SIGNATURE */}
             <div className="col-span-1 md:col-span-2 mt-2 pt-6 border-t border-slate-100/50">
                  <div className="flex items-center justify-between mb-3">
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -219,7 +241,6 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
                  </div>
 
                  {isBusiness ? (
-                    // VERSION DÉBLOQUÉE
                     <div className="flex items-center gap-4">
                         <div className="relative w-32 h-20 border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center bg-slate-50 overflow-hidden group hover:border-violet-400 transition-colors">
                             {formData.signature ? (
@@ -231,7 +252,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
                                 </div>
                             )}
                             {formData.signature && (
-                                <button onClick={() => setFormData({...formData, signature: undefined})} className="absolute top-1 right-1 bg-white shadow-sm border border-slate-200 text-slate-500 hover:text-red-600 rounded-md p-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                                <button type="button" onClick={() => setFormData(prev => ({...prev, signature: undefined}))} className="absolute top-1 right-1 bg-white shadow-sm border border-slate-200 text-slate-500 hover:text-red-600 rounded-md p-0.5 opacity-0 group-hover:opacity-100 transition-all">
                                     <X className="w-3 h-3" />
                                 </button>
                             )}
@@ -245,7 +266,6 @@ const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, setHasUnsavedCh
                         </div>
                     </div>
                  ) : (
-                    // VERSION VERROUILLÉE
                     <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-col items-center justify-center text-center">
                         <div className="relative z-10 bg-white p-1.5 rounded-full shadow-sm mb-2">
                             <Lock className="w-4 h-4 text-slate-400" />

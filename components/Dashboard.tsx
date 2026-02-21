@@ -282,9 +282,9 @@ const Dashboard: React.FC<DashboardProps> = ({ invoices, expenses, user, onNavig
                         <TrendingUp className="w-5 h-5" />
                     </div>
                 </div>
-                <div className="flex-1 p-4 w-full h-full">
+                <div className="flex-1 p-4 w-full" style={{ minHeight: '260px' }}>
                     {chartData.length > 0 && periodTotal > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minHeight={220}>
                             <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">

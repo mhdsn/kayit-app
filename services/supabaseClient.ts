@@ -1,7 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-// On ajoute "as string" pour garantir à TypeScript que les clés existent
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Client Supabase simple et propre - le proxy Vite gère HTTP/2
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  }
+});

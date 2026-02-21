@@ -3,7 +3,8 @@ import { Client } from '../types';
 
 // Récupérer tous les clients de l'utilisateur
 export const getClients = async (): Promise<Client[]> => {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) return [];
 
   const { data, error } = await supabase
@@ -21,7 +22,8 @@ export const getClients = async (): Promise<Client[]> => {
 
 // Sauvegarder ou Mettre à jour un client (Basé sur le nom)
 export const upsertClient = async (client: Client) => {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user || !client.name) return;
 
   const { error } = await supabase
